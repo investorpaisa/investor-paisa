@@ -3,6 +3,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatDistanceToNow } from 'date-fns';
+import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
+import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
+import { toast } from 'sonner';
 
 interface Post {
   id: string;
@@ -43,10 +47,146 @@ interface PostWithAuthor extends Post {
   author?: Profile | null;
 }
 
+// Individual post card with reaction hooks
+const FeedPostCard: React.FC<{ post: PostWithAuthor; onProfileClick: (username: string | null) => void }> = ({ post, onProfileClick }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const toggleReaction = useToggleReaction();
+  const toggleBookmark = useToggleBookmark();
+  
+  const { data: userReactions } = useUserReaction(post.id, 'post');
+  const { data: isBookmarked } = useIsBookmarked(post.id);
+  
+  const isLiked = userReactions?.some(r => r.reaction_type === 'like') || false;
+
+  const handleLike = () => {
+    if (!user) {
+      navigate('/auth/login');
+      return;
+    }
+    toggleReaction.mutate({
+      entityId: post.id,
+      entityType: 'post',
+      reactionType: 'like',
+    });
+  };
+
+  const handleSave = () => {
+    if (!user) {
+      navigate('/auth/login');
+      return;
+    }
+    toggleBookmark.mutate({
+      entityId: post.id,
+      entityType: 'post',
+    });
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+      toast.success('Link copied to clipboard');
+    } catch {
+      toast.error('Failed to copy link');
+    }
+  };
+
+  return (
+    <Card className="border shadow-sm hover:shadow-md transition-shadow">
+      <CardHeader className="p-4 pb-2">
+        <div className="flex justify-between items-start">
+          <div className="flex items-center gap-3">
+            <Avatar 
+              className="cursor-pointer transition-transform hover:scale-105"
+              onClick={() => onProfileClick(post.author?.username || null)}
+            >
+              <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'User'} />
+              <AvatarFallback>
+                {post.author?.full_name?.charAt(0) || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="flex items-center gap-1">
+                <h4 
+                  className="font-medium hover:underline cursor-pointer"
+                  onClick={() => onProfileClick(post.author?.username || null)}
+                >
+                  {post.author?.full_name || 'Anonymous'}
+                </h4>
+                {post.author?.is_verified && (
+                  <span className="text-primary">
+                    <TrendingUp className="h-3 w-3" />
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <span className="mr-2">@{post.author?.username || 'user'}</span>
+                <span className="mr-2">•</span>
+                <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center">
+            <Badge variant="outline" className="mr-2 capitalize">
+              {post.type}
+            </Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>Report content</DropdownMenuItem>
+                <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleShare}>Copy link</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-2 cursor-pointer" onClick={() => navigate(`/post/${post.id}`)}>
+        {post.title && <h3 className="text-lg font-medium mb-2">{post.title}</h3>}
+        {post.body && <p className="text-muted-foreground text-sm whitespace-pre-wrap line-clamp-4">{post.body}</p>}
+      </CardContent>
+      <CardFooter className="p-4 pt-0 flex justify-between">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`gap-1 ${isLiked ? 'text-primary' : ''}`}
+            onClick={handleLike}
+            disabled={toggleReaction.isPending}
+          >
+            <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
+            <span>{post.like_count || 0}</span>
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate(`/post/${post.id}`)}>
+            <MessageSquare className="h-4 w-4" />
+            <span>{post.comment_count || 0}</span>
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1" onClick={handleShare}>
+            <Share2 className="h-4 w-4" />
+            <span>{post.share_count || 0}</span>
+          </Button>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className={isBookmarked ? 'text-primary' : ''}
+          onClick={handleSave}
+          disabled={toggleBookmark.isPending}
+        >
+          <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
 const Feed: React.FC = () => {
   const navigate = useNavigate();
-  const [likedPosts, setLikedPosts] = React.useState<Record<string, boolean>>({});
-  const [savedPosts, setSavedPosts] = React.useState<Record<string, boolean>>({});
+  const { user } = useAuth();
 
   const { data: posts, isLoading, error } = useQuery({
     queryKey: ['feed-posts'],
@@ -90,115 +230,61 @@ const Feed: React.FC = () => {
     },
   });
 
-  const handleLike = (postId: string) => {
-    setLikedPosts(prev => ({
-      ...prev,
-      [postId]: !prev[postId]
-    }));
-  };
+  // Fetch following feed
+  const { data: followingPosts, isLoading: followingLoading, error: followingError } = useQuery({
+    queryKey: ['following-feed', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
 
-  const handleSave = (postId: string) => {
-    setSavedPosts(prev => ({
-      ...prev,
-      [postId]: !prev[postId]
-    }));
-  };
+      // Get users I'm following
+      const { data: follows, error: followsError } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+
+      if (followsError) throw followsError;
+      if (!follows || follows.length === 0) return [];
+
+      const followingIds = follows.map(f => f.following_id);
+
+      // Get posts from followed users
+      const { data: postsData, error: postsError } = await supabase
+        .from('posts')
+        .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id')
+        .in('author_id', followingIds)
+        .eq('moderation_status', 'approved')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (postsError) throw postsError;
+      if (!postsData || postsData.length === 0) return [];
+
+      // Fetch profiles
+      const authorIds = [...new Set(postsData.map(p => p.author_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url, headline, is_verified')
+        .in('id', authorIds);
+
+      const profilesMap = new Map<string, Profile>();
+      profilesData?.forEach(profile => {
+        profilesMap.set(profile.id, profile);
+      });
+
+      return postsData.map(post => ({
+        ...post,
+        author: profilesMap.get(post.author_id) || null,
+      }));
+    },
+    enabled: !!user?.id,
+  });
 
   const handleProfile = (username: string | null) => {
     if (username) {
       navigate(`/profile/${username}`);
     }
   };
-
-  const renderPostCard = (post: PostWithAuthor) => (
-    <Card key={post.id} className="border shadow-sm hover:shadow-md transition-shadow">
-      <CardHeader className="p-4 pb-2">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-3">
-            <Avatar 
-              className="cursor-pointer transition-transform hover:scale-105"
-              onClick={() => handleProfile(post.author?.username || null)}
-            >
-              <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'User'} />
-              <AvatarFallback>
-                {post.author?.full_name?.charAt(0) || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="flex items-center gap-1">
-                <h4 
-                  className="font-medium hover:underline cursor-pointer"
-                  onClick={() => handleProfile(post.author?.username || null)}
-                >
-                  {post.author?.full_name || 'Anonymous'}
-                </h4>
-                {post.author?.is_verified && (
-                  <span className="text-primary">
-                    <TrendingUp className="h-3 w-3" />
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center text-xs text-muted-foreground">
-                <span className="mr-2">@{post.author?.username || 'user'}</span>
-                <span className="mr-2">•</span>
-                <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center">
-            <Badge variant="outline" className="mr-2 capitalize">
-              {post.type}
-            </Badge>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Report content</DropdownMenuItem>
-                <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
-                <DropdownMenuItem>Copy link</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-2">
-        {post.title && <h3 className="text-lg font-medium mb-2">{post.title}</h3>}
-        {post.body && <p className="text-muted-foreground text-sm whitespace-pre-wrap">{post.body}</p>}
-      </CardContent>
-      <CardFooter className="p-4 pt-0 flex justify-between">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`gap-1 ${likedPosts[post.id] ? 'text-primary' : ''}`}
-            onClick={() => handleLike(post.id)}
-          >
-            <Heart className="h-4 w-4" fill={likedPosts[post.id] ? "currentColor" : "none"} />
-            <span>{(post.like_count || 0) + (likedPosts[post.id] ? 1 : 0)}</span>
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-1">
-            <MessageSquare className="h-4 w-4" />
-            <span>{post.comment_count || 0}</span>
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-1">
-            <Share2 className="h-4 w-4" />
-            <span>{post.share_count || 0}</span>
-          </Button>
-        </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className={savedPosts[post.id] ? 'text-primary' : ''}
-          onClick={() => handleSave(post.id)}
-        >
-          <Bookmark className="h-4 w-4" fill={savedPosts[post.id] ? "currentColor" : "none"} />
-        </Button>
-      </CardFooter>
-    </Card>
-  );
 
   const renderLoadingSkeleton = () => (
     <div className="space-y-6">
@@ -247,6 +333,17 @@ const Feed: React.FC = () => {
     </div>
   );
 
+  const renderFollowingEmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-10">
+      <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
+      <h3 className="text-lg font-medium mb-2">No posts from people you follow</h3>
+      <p className="text-muted-foreground text-center mb-4">
+        Follow more users and experts to see their posts here
+      </p>
+      <Button onClick={() => navigate('/discover')}>Discover People to Follow</Button>
+    </div>
+  );
+
   return (
     <div className="container max-w-3xl mx-auto py-6">
       <h1 className="text-2xl font-bold mb-6">Feed</h1>
@@ -265,20 +362,33 @@ const Feed: React.FC = () => {
           {!isLoading && !error && posts && posts.length === 0 && renderEmptyState()}
           {!isLoading && !error && posts && posts.length > 0 && (
             <div className="space-y-6">
-              {posts.map(renderPostCard)}
+              {posts.map(post => (
+                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
+              ))}
             </div>
           )}
         </TabsContent>
         
         <TabsContent value="following" className="mt-0">
-          <div className="flex flex-col items-center justify-center py-10">
-            <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No posts yet</h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Follow more users and experts to see their posts here
-            </p>
-            <Button>Discover People to Follow</Button>
-          </div>
+          {!user ? (
+            <div className="flex flex-col items-center justify-center py-10">
+              <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Sign in to see posts from people you follow</h3>
+              <Button onClick={() => navigate('/auth/login')}>Sign In</Button>
+            </div>
+          ) : followingLoading ? (
+            renderLoadingSkeleton()
+          ) : followingError ? (
+            renderErrorState()
+          ) : !followingPosts || followingPosts.length === 0 ? (
+            renderFollowingEmptyState()
+          ) : (
+            <div className="space-y-6">
+              {followingPosts.map(post => (
+                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
+              ))}
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="trending" className="mt-0">
@@ -287,7 +397,9 @@ const Feed: React.FC = () => {
           {!isLoading && !error && posts && posts.length === 0 && renderEmptyState()}
           {!isLoading && !error && posts && posts.length > 0 && (
             <div className="space-y-6">
-              {[...posts].sort((a, b) => (b.like_count || 0) - (a.like_count || 0)).map(renderPostCard)}
+              {[...posts].sort((a, b) => (b.like_count || 0) - (a.like_count || 0)).map(post => (
+                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
+              ))}
             </div>
           )}
         </TabsContent>
@@ -298,7 +410,9 @@ const Feed: React.FC = () => {
           {!isLoading && !error && posts && posts.length === 0 && renderEmptyState()}
           {!isLoading && !error && posts && posts.length > 0 && (
             <div className="space-y-6">
-              {posts.map(renderPostCard)}
+              {posts.map(post => (
+                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
+              ))}
             </div>
           )}
         </TabsContent>

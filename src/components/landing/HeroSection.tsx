@@ -101,12 +101,12 @@ const HeroSection = () => {
         >
           <div className="relative">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-gold to-gold/20 rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-1000"></div>
-            <div className="relative aspect-square rounded-lg overflow-hidden border border-black/10 bg-white/90">
-              <img 
-                src="/placeholder.svg"
-                alt="Financial Community" 
-                className="w-full h-full object-cover"
-              />
+            <div className="relative aspect-square rounded-lg overflow-hidden border border-black/10 bg-gradient-to-br from-gold/10 via-white to-gold/5 flex items-center justify-center">
+              <div className="text-center p-8">
+                <TrendingUp className="h-16 w-16 text-gold mx-auto mb-4" />
+                <p className="text-lg font-medium text-black/80">Financial Community</p>
+                <p className="text-sm text-black/60">Grow Together</p>
+              </div>
             </div>
             <div className="absolute -right-4 -bottom-4 w-24 h-24 rounded-full bg-white border border-gold/20 flex items-center justify-center">
               <div className="text-center">

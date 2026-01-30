@@ -13,7 +13,7 @@ export const ProfilePictureSection = ({ avatar, name }: ProfilePictureSectionPro
   return (
     <div className="flex items-center gap-4">
       <Avatar className="h-20 w-20">
-        <AvatarImage src={avatar || '/placeholder.svg'} />
+        <AvatarImage src={avatar || undefined} />
         <AvatarFallback>{name.substring(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
       <div className="space-y-2">

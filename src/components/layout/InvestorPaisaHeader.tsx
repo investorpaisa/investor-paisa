@@ -110,7 +110,7 @@ export const InvestorPaisaHeader: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt="Profile" />
+                      <AvatarImage src={profile?.avatar_url || undefined} alt="Profile" />
                       <AvatarFallback>
                         {profile?.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0).toUpperCase()}
                       </AvatarFallback>

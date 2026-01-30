@@ -42,7 +42,7 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick }) => {
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarImage src={post.author?.avatar_url || '/placeholder.svg'} alt={post.author?.full_name || 'Profile'} />
+            <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'Profile'} />
             <AvatarFallback>{post.author?.full_name?.charAt(0) || 'U'}{post.author?.full_name?.split(' ')[1]?.charAt(0) || ''}</AvatarFallback>
           </Avatar>
           <div>
