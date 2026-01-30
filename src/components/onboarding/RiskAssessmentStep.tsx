@@ -1,9 +1,11 @@
-
 import React, { useState } from 'react';
-import { SystemButton, SystemCard, Typography } from '@/components/ui/design-system';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { OnboardingData } from './OnboardingFlow';
+import { ArrowLeft, ArrowRight, Shield, TrendingUp, Zap, Flame } from 'lucide-react';
 
 interface RiskAssessmentStepProps {
   data: Partial<OnboardingData>;
@@ -71,9 +73,7 @@ export const RiskAssessmentStep: React.FC<RiskAssessmentStepProps> = ({
   onPrevious,
   showPrevious
 }) => {
-  const [answers, setAnswers] = useState<Record<string, number>>(
-    data.risk_profile ? {} : {}
-  );
+  const [answers, setAnswers] = useState<Record<string, number>>({});
 
   const handleAnswerChange = (questionId: string, score: number) => {
     setAnswers(prev => ({ ...prev, [questionId]: score }));
@@ -103,74 +103,128 @@ export const RiskAssessmentStep: React.FC<RiskAssessmentStepProps> = ({
 
   const isComplete = Object.keys(answers).length === riskQuestions.length;
 
-  const getRiskProfileDescription = (profile: string) => {
+  const getRiskProfileInfo = (profile: string) => {
     switch (profile) {
       case 'conservative':
-        return 'You prefer stable investments with lower risk and steady returns.';
+        return { 
+          description: 'You prefer stable investments with lower risk and steady returns.',
+          icon: Shield,
+          color: 'text-blue-400'
+        };
       case 'moderate':
-        return 'You seek a balance between growth potential and risk management.';
+        return { 
+          description: 'You seek a balance between growth potential and risk management.',
+          icon: TrendingUp,
+          color: 'text-primary'
+        };
       case 'aggressive':
-        return 'You are comfortable with higher risk for potentially greater returns.';
+        return { 
+          description: 'You are comfortable with higher risk for potentially greater returns.',
+          icon: Zap,
+          color: 'text-warning'
+        };
       case 'very_aggressive':
-        return 'You actively seek maximum returns and are comfortable with high volatility.';
+        return { 
+          description: 'You actively seek maximum returns and are comfortable with high volatility.',
+          icon: Flame,
+          color: 'text-destructive'
+        };
       default:
-        return '';
+        return { description: '', icon: Shield, color: 'text-muted-foreground' };
     }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-6">
-        {riskQuestions.map((question) => (
-          <SystemCard key={question.id} variant="default" className="p-4">
-            <Typography.H3 className="text-base mb-4 font-medium">{question.text}</Typography.H3>
-            <RadioGroup
-              value={answers[question.id]?.toString() || ''}
-              onValueChange={(value) => handleAnswerChange(question.id, parseInt(value))}
-            >
-              {question.options.map((option, index) => (
-                <div key={index} className="flex items-start space-x-3">
-                  <RadioGroupItem value={option.score.toString()} id={`${question.id}-${index}`} />
-                  <Label 
-                    htmlFor={`${question.id}-${index}`} 
-                    className="text-sm cursor-pointer leading-relaxed text-white/80"
+      <motion.div className="space-y-4 max-h-[400px] overflow-y-auto scrollbar-thin pr-2" initial="hidden" animate="visible">
+        {riskQuestions.map((question, qIndex) => (
+          <motion.div 
+            key={question.id}
+            variants={itemVariants}
+            transition={{ delay: qIndex * 0.1 }}
+          >
+            <Card className="glass border-border/50 p-4 rounded-xl">
+              <h4 className="text-foreground font-medium mb-3 text-sm">{question.text}</h4>
+              <RadioGroup
+                value={answers[question.id]?.toString() || ''}
+                onValueChange={(value) => handleAnswerChange(question.id, parseInt(value))}
+                className="space-y-2"
+              >
+                {question.options.map((option, index) => (
+                  <div 
+                    key={index} 
+                    className={`flex items-center space-x-3 p-2 rounded-lg transition-colors ${
+                      answers[question.id] === option.score ? 'bg-primary/10 border border-primary/30' : 'hover:bg-secondary/50'
+                    }`}
                   >
-                    {option.text}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </SystemCard>
+                    <RadioGroupItem 
+                      value={option.score.toString()} 
+                      id={`${question.id}-${index}`}
+                      className="border-border data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                    />
+                    <Label 
+                      htmlFor={`${question.id}-${index}`} 
+                      className="text-sm cursor-pointer leading-relaxed text-muted-foreground flex-1"
+                    >
+                      {option.text}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </Card>
+          </motion.div>
         ))}
 
         {isComplete && (
-          <SystemCard variant="glass" className="p-4 border-gold/20">
-            <Typography.H3 className="text-base mb-2">Your Risk Profile</Typography.H3>
-            <div className="mb-2">
-              <span className="text-gold font-medium capitalize text-lg">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="glass border-primary/30 p-4 rounded-xl glow-primary">
+              <div className="flex items-center gap-3 mb-2">
+                {(() => {
+                  const info = getRiskProfileInfo(calculateRiskProfile());
+                  const Icon = info.icon;
+                  return <Icon className={`h-5 w-5 ${info.color}`} />;
+                })()}
+                <h4 className="text-foreground font-semibold">Your Risk Profile</h4>
+              </div>
+              <p className="text-primary font-medium capitalize text-lg mb-1">
                 {calculateRiskProfile().replace('_', ' ')}
-              </span>
-            </div>
-            <Typography.Small className="text-white/70">
-              {getRiskProfileDescription(calculateRiskProfile())}
-            </Typography.Small>
-          </SystemCard>
+              </p>
+              <p className="text-muted-foreground text-sm">
+                {getRiskProfileInfo(calculateRiskProfile()).description}
+              </p>
+            </Card>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 pt-4">
         {showPrevious && (
-          <SystemButton variant="outline" onClick={onPrevious}>
-            Previous
-          </SystemButton>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button type="button" variant="outline" onClick={onPrevious} className="border-border hover:bg-secondary rounded-xl">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Previous
+            </Button>
+          </motion.div>
         )}
-        <SystemButton 
-          type="submit" 
-          disabled={!isComplete}
-          className="flex-1"
-        >
-          Continue
-        </SystemButton>
+        <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button 
+            type="submit" 
+            disabled={!isComplete}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-12 glow-primary font-semibold disabled:opacity-50"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </motion.div>
       </div>
     </form>
   );
