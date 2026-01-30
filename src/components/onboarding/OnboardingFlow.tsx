@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +15,7 @@ export interface OnboardingData {
   location: string;
   profession: string;
   risk_profile: 'conservative' | 'moderate' | 'aggressive' | 'very_aggressive';
-  financial_goals: Record<string, any>;
+  goals: string[];
   email_integration: boolean;
 }
 
@@ -29,7 +28,7 @@ export const OnboardingFlow: React.FC = () => {
     message: ''
   });
   const [onboardingData, setOnboardingData] = useState<Partial<OnboardingData>>({
-    financial_goals: {},
+    goals: [],
     email_integration: false
   });
   
@@ -70,10 +69,12 @@ export const OnboardingFlow: React.FC = () => {
     setIsLoading(true);
     try {
       // Update the profile with onboarding completion
+      // Using 'goals' as string array which matches the database schema
       await updateProfile({
         onboarding_completed: true,
-        financial_goals: onboardingData.financial_goals || {},
-        risk_profile: onboardingData.risk_profile
+        goals: onboardingData.goals || [],
+        full_name: onboardingData.full_name,
+        location: onboardingData.location,
       });
 
       navigate('/home');
@@ -97,7 +98,7 @@ export const OnboardingFlow: React.FC = () => {
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <ErrorToast
         isVisible={error.show}
         onClose={hideError}
@@ -106,17 +107,17 @@ export const OnboardingFlow: React.FC = () => {
         message={error.message}
       />
       
-      <Card className="w-full max-w-2xl bg-black/90 border border-white/10">
+      <Card className="w-full max-w-2xl bg-card border border-border">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gold font-heading">
+          <CardTitle className="text-2xl font-bold text-primary font-heading">
             Complete Your Financial Profile
           </CardTitle>
-          <Typography.Body className="text-white/70 mt-2">
+          <Typography.Body className="text-muted-foreground mt-2">
             {steps[currentStep].description}
           </Typography.Body>
           <div className="mt-4">
             <Progress value={progress} className="h-2" />
-            <div className="flex justify-between mt-2 text-xs text-white/60">
+            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
               <span>Step {currentStep + 1} of {steps.length}</span>
               <span>{Math.round(progress)}% Complete</span>
             </div>

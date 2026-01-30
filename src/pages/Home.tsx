@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,32 +19,31 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Typography, SystemCard, SystemButton } from '@/components/ui/design-system';
 
 export default function Home() {
-  const { profile, loading } = useAuth();
+  const { profile, isLoading } = useAuth();
   const navigate = useNavigate();
 
   // Only redirect to onboarding if profile exists but onboarding is not completed
   useEffect(() => {
-    if (!loading && profile) {
-      // Check if onboarding is specifically false (not null/undefined)
+    if (!isLoading && profile) {
       if (profile.onboarding_completed === false) {
         console.log('Redirecting to onboarding - onboarding_completed:', profile.onboarding_completed);
         navigate('/onboarding');
       }
     }
-  }, [profile, loading, navigate]);
+  }, [profile, isLoading, navigate]);
 
   // Show loading while we're checking the profile
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <motion.div
           className="text-center"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-gold to-gold/80 flex items-center justify-center mx-auto mb-4">
-            <Sparkles className="w-8 h-8 text-black" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-8 h-8 text-primary-foreground" />
           </div>
           <Typography.Body>Loading...</Typography.Body>
         </motion.div>
@@ -58,14 +56,15 @@ export default function Home() {
     return null;
   }
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
+  const getTrustLevelColor = (level: string | null | undefined) => {
+    switch (level) {
       case 'expert':
-        return 'bg-gold/20 text-gold border-gold/30';
-      case 'influencer':
-        return 'bg-white/10 text-white border-white/30';
+      case 'legend':
+        return 'bg-primary/20 text-primary border-primary/30';
+      case 'trusted':
+        return 'bg-secondary/20 text-secondary-foreground border-secondary/30';
       default:
-        return 'bg-white/5 text-white/70 border-white/20';
+        return 'bg-muted text-muted-foreground border-border';
     }
   };
 
@@ -75,21 +74,21 @@ export default function Home() {
       description: 'Connect with like-minded investors',
       icon: Users,
       href: '/circles',
-      gradient: 'from-gold/20 to-gold/10'
+      gradient: 'from-primary/20 to-primary/10'
     },
     {
-      title: 'Market Analysis',
-      description: 'Latest market insights and trends',
+      title: 'Explore Feed',
+      description: 'Latest posts and insights',
       icon: TrendingUp,
-      href: '/market',
-      gradient: 'from-white/20 to-white/10'
+      href: '/feed',
+      gradient: 'from-secondary/20 to-secondary/10'
     },
     {
-      title: 'Learn & Grow',
-      description: 'Educational content and tips',
+      title: 'Discover',
+      description: 'Find topics and experts',
       icon: BookOpen,
       href: '/discover',
-      gradient: 'from-gold/10 to-transparent'
+      gradient: 'from-accent/20 to-accent/10'
     }
   ];
 
@@ -114,12 +113,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
+    <div className="min-h-screen bg-background text-foreground p-6">
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="space-y-6"
+        className="max-w-7xl mx-auto space-y-6"
       >
         {/* Welcome Header */}
         <motion.div variants={itemVariants}>
@@ -132,33 +131,31 @@ export default function Home() {
                     animate={{ scale: 1 }}
                     transition={{ delay: 0.3, type: "spring" }}
                   >
-                    <Sparkles className="h-8 w-8 text-gold" />
+                    <Sparkles className="h-8 w-8 text-primary" />
                   </motion.div>
-                  <Typography.H2 className="text-white">
-                    Welcome back, {profile?.full_name || profile?.username}!
+                  <Typography.H2>
+                    Welcome back, {profile?.full_name || profile?.username || 'Investor'}!
                   </Typography.H2>
-                  <Badge className={`${getRoleColor(profile?.role || 'user')}`}>
-                    {profile?.role?.charAt(0).toUpperCase() + profile?.role?.slice(1)}
+                  <Badge className={getTrustLevelColor(profile?.trust_level)}>
+                    {profile?.trust_level?.charAt(0).toUpperCase()}{profile?.trust_level?.slice(1) || 'Member'}
                   </Badge>
-                  {profile?.role === 'expert' && (
-                    <Crown className="h-5 w-5 text-gold" />
+                  {profile?.is_expert && (
+                    <Crown className="h-5 w-5 text-primary" />
                   )}
                 </div>
-                <Typography.Body className="text-lg text-white/80">
+                <Typography.Body className="text-lg text-muted-foreground">
                   Ready to grow your wealth? Let's explore today's opportunities.
                 </Typography.Body>
               </div>
               <div className="text-center md:text-right">
-                <Typography.Small className="text-white/60">Financial Literacy Score</Typography.Small>
+                <Typography.Small className="text-muted-foreground">Trust Score</Typography.Small>
                 <motion.div
-                  className="text-4xl font-bold text-gold"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.5, type: "spring" }}
                 >
-                  <Typography.H2 className="text-gold">
-                    {profile?.financial_literacy_score || 'N/A'}
-                    {profile?.financial_literacy_score && '/100'}
+                  <Typography.H2 className="text-primary">
+                    {profile?.trust_score || 0}/100
                   </Typography.H2>
                 </motion.div>
               </div>
@@ -181,16 +178,16 @@ export default function Home() {
                 className="cursor-pointer"
                 onClick={() => navigate(action.href)}
               >
-                <SystemCard variant="default" className="hover:border-gold/30 transition-all duration-300">
+                <SystemCard variant="default" className="hover:border-primary/30 transition-all duration-300">
                   <div className="flex items-center space-x-4">
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center`}>
-                      <Icon className="h-6 w-6 text-white" />
+                      <Icon className="h-6 w-6 text-foreground" />
                     </div>
                     <div className="flex-1">
-                      <Typography.H3 className="text-lg mb-1 text-white">{action.title}</Typography.H3>
-                      <Typography.Small className="text-white/70">{action.description}</Typography.Small>
+                      <Typography.H3 className="text-lg mb-1">{action.title}</Typography.H3>
+                      <Typography.Small className="text-muted-foreground">{action.description}</Typography.Small>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-gold" />
+                    <ArrowRight className="h-5 w-5 text-primary" />
                   </div>
                 </SystemCard>
               </motion.div>
@@ -201,34 +198,34 @@ export default function Home() {
         {/* Main Content Tabs */}
         <motion.div variants={itemVariants}>
           <Tabs defaultValue="feed" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 bg-black/50 border border-white/10">
-              <TabsTrigger value="feed" className="data-[state=active]:bg-gold data-[state=active]:text-black text-white">Feed</TabsTrigger>
-              <TabsTrigger value="portfolio" className="data-[state=active]:bg-gold data-[state=active]:text-black text-white">Portfolio</TabsTrigger>
-              <TabsTrigger value="goals" className="data-[state=active]:bg-gold data-[state=active]:text-black text-white">Goals</TabsTrigger>
-              <TabsTrigger value="alerts" className="data-[state=active]:bg-gold data-[state=active]:text-black text-white">Alerts</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 bg-muted/50 border border-border">
+              <TabsTrigger value="feed" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Feed</TabsTrigger>
+              <TabsTrigger value="portfolio" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Portfolio</TabsTrigger>
+              <TabsTrigger value="goals" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Goals</TabsTrigger>
+              <TabsTrigger value="alerts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Alerts</TabsTrigger>
             </TabsList>
 
             <TabsContent value="feed" className="space-y-4">
               <SystemCard>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-white">
-                    <TrendingUp className="h-5 w-5 text-gold" />
+                  <CardTitle className="flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
                     <span>Latest from Your Network</span>
                   </CardTitle>
-                  <CardDescription className="text-white/60">
+                  <CardDescription>
                     Recent posts from circles and people you follow
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12 text-white/60">
+                  <div className="text-center py-12 text-muted-foreground">
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ delay: 0.2 }}
                     >
-                      <Users className="h-16 w-16 mx-auto mb-4 text-gold/50" />
+                      <Users className="h-16 w-16 mx-auto mb-4 text-primary/50" />
                     </motion.div>
-                    <Typography.Body className="mb-4 text-white/60">No recent activity in your network.</Typography.Body>
+                    <Typography.Body className="mb-4">No recent activity in your network.</Typography.Body>
                     <SystemButton onClick={() => navigate('/feed')}>
                       Explore Feed
                     </SystemButton>
@@ -240,16 +237,18 @@ export default function Home() {
             <TabsContent value="portfolio" className="space-y-4">
               <SystemCard>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-white">
-                    <PieChart className="h-5 w-5 text-gold" />
+                  <CardTitle className="flex items-center space-x-2">
+                    <PieChart className="h-5 w-5 text-primary" />
                     <span>Portfolio Overview</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-12">
-                    <PieChart className="h-16 w-16 mx-auto mb-4 text-gold/50" />
-                    <Typography.Body className="mb-4 text-white/60">No portfolio data available.</Typography.Body>
-                    <SystemButton>Create Portfolio</SystemButton>
+                    <PieChart className="h-16 w-16 mx-auto mb-4 text-primary/50" />
+                    <Typography.Body className="mb-4 text-muted-foreground">
+                      Portfolio value: ₹{profile?.portfolio_value?.toLocaleString() || '0'}
+                    </Typography.Body>
+                    <SystemButton>Track Portfolio</SystemButton>
                   </div>
                 </CardContent>
               </SystemCard>
@@ -258,21 +257,28 @@ export default function Home() {
             <TabsContent value="goals" className="space-y-4">
               <SystemCard>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-white">
-                    <Target className="h-5 w-5 text-gold" />
+                  <CardTitle className="flex items-center space-x-2">
+                    <Target className="h-5 w-5 text-primary" />
                     <span>Financial Goals</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                      <Typography.H3 className="text-base text-white">Primary Goal</Typography.H3>
-                      <Typography.Small className="capitalize text-white/70">
-                        {typeof profile?.financial_goals === 'object' && profile?.financial_goals
-                          ? (profile.financial_goals as any).primary_goal?.replace('_', ' ')
-                          : 'Not set'}
-                      </Typography.Small>
-                    </div>
+                    {profile?.goals && profile.goals.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {profile.goals.map((goal, index) => (
+                          <Badge key={index} variant="secondary">
+                            {goal.replace(/_/g, ' ')}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Target className="h-12 w-12 mx-auto mb-4 text-primary/50" />
+                        <Typography.Body className="text-muted-foreground mb-4">No goals set yet</Typography.Body>
+                        <SystemButton onClick={() => navigate('/edit-profile')}>Set Goals</SystemButton>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </SystemCard>
@@ -281,15 +287,15 @@ export default function Home() {
             <TabsContent value="alerts" className="space-y-4">
               <SystemCard>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-white">
-                    <Bell className="h-5 w-5 text-gold" />
+                  <CardTitle className="flex items-center space-x-2">
+                    <Bell className="h-5 w-5 text-primary" />
                     <span>Market Alerts</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-12">
-                    <Bell className="h-16 w-16 mx-auto mb-4 text-gold/50" />
-                    <Typography.Body className="mb-4 text-white/60">No active alerts.</Typography.Body>
+                    <Bell className="h-16 w-16 mx-auto mb-4 text-primary/50" />
+                    <Typography.Body className="mb-4 text-muted-foreground">No active alerts.</Typography.Body>
                     <SystemButton>Set Up Alerts</SystemButton>
                   </div>
                 </CardContent>

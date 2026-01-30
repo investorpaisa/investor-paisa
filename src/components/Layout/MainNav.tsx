@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,46 +30,48 @@ const navigation = [
   { name: 'Home', href: '/home', icon: Home },
   { name: 'Feed', href: '/feed', icon: TrendingUp },
   { name: 'Circles', href: '/circles', icon: Users },
-  { name: 'Market', href: '/market', icon: BarChart3 },
   { name: 'Discover', href: '/discover', icon: Search },
-  { name: 'Analytics', href: '/dashboard', icon: BarChart3 },
+  { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
 ];
 
 export const MainNav = () => {
   const location = useLocation();
   const { profile, signOut } = useAuth();
 
-  const getRoleIcon = (role: string) => {
-    switch (role) {
+  const getTrustLevelIcon = (level: string | null | undefined) => {
+    switch (level) {
       case 'expert':
-        return <Crown className="h-3 w-3 text-yellow-500" />;
-      case 'influencer':
-        return <Verified className="h-3 w-3 text-blue-500" />;
+      case 'legend':
+        return <Crown className="h-3 w-3 text-primary" />;
+      case 'trusted':
+        return <Verified className="h-3 w-3 text-primary" />;
       default:
         return null;
     }
   };
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
+  const getTrustLevelBadge = (level: string | null | undefined) => {
+    switch (level) {
       case 'expert':
-        return <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">Expert</Badge>;
-      case 'influencer':
-        return <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">Influencer</Badge>;
+        return <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">Expert</Badge>;
+      case 'legend':
+        return <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">Legend</Badge>;
+      case 'trusted':
+        return <Badge variant="secondary" className="text-xs bg-secondary/10 text-secondary-foreground">Trusted</Badge>;
       default:
         return null;
     }
   };
 
   return (
-    <div className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-16 items-center px-4">
         {/* Logo */}
         <Link to="/home" className="flex items-center space-x-2">
-          <div className="h-8 w-8 bg-gradient-to-r from-green-600 to-green-700 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">IP</span>
+          <div className="h-8 w-8 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-sm">IP</span>
           </div>
-          <span className="font-bold text-xl text-gray-900">InvestorPaisa</span>
+          <span className="font-bold text-xl text-foreground">InvestorPaisa</span>
         </Link>
 
         {/* Navigation */}
@@ -85,7 +86,7 @@ export const MainNav = () => {
                 className={cn(
                   'flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary',
                   isActive
-                    ? 'text-green-600 border-b-2 border-green-600 pb-1'
+                    ? 'text-primary border-b-2 border-primary pb-1'
                     : 'text-muted-foreground'
                 )}
               >
@@ -98,8 +99,10 @@ export const MainNav = () => {
 
         <div className="ml-auto flex items-center space-x-4">
           {/* Notifications */}
-          <Button variant="ghost" size="sm">
-            <Bell className="h-4 w-4" />
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/notifications">
+              <Bell className="h-4 w-4" />
+            </Link>
           </Button>
 
           {/* Messages */}
@@ -114,7 +117,7 @@ export const MainNav = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={profile?.avatar_url} alt={profile?.full_name || profile?.username} />
+                  <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || profile?.username || 'User'} />
                   <AvatarFallback>
                     {(profile?.full_name || profile?.username || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
@@ -126,28 +129,30 @@ export const MainNav = () => {
                 <div className="flex flex-col space-y-1">
                   <div className="flex items-center space-x-2">
                     <p className="text-sm font-medium leading-none">
-                      {profile?.full_name || profile?.username}
+                      {profile?.full_name || profile?.username || 'User'}
                     </p>
-                    {getRoleIcon(profile?.role || 'user')}
+                    {getTrustLevelIcon(profile?.trust_level)}
                   </div>
                   <p className="text-xs leading-none text-muted-foreground">
                     {profile?.email}
                   </p>
-                  {getRoleBadge(profile?.role || 'user')}
+                  {getTrustLevelBadge(profile?.trust_level)}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to={`/profile/${profile?.id}`}>
+                <Link to="/profile">
                   Profile
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
+              <DropdownMenuItem asChild>
+                <Link to="/edit-profile">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut}>
+              <DropdownMenuItem onClick={() => signOut()}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

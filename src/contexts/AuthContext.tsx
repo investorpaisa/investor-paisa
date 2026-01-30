@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
+  loading: boolean; // Alias for isLoading
   isAuthenticated: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -15,6 +16,11 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
+  completeOnboarding: () => Promise<void>;
+  // Aliases for backward compatibility
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ error: Error | null }>;
+  login: (email: string, password: string) => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -172,11 +178,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return { error: error as Error | null };
   };
 
+  const completeOnboarding = async () => {
+    await updateProfile({ onboarding_completed: true });
+  };
+
+  // Alias for login - returns user on success
+  const login = async (email: string, password: string): Promise<User | null> => {
+    const result = await signInWithEmail(email, password);
+    if (result.error) {
+      console.error('Login error:', result.error);
+      return null;
+    }
+    return user;
+  };
+
   const value: AuthContextType = {
     user,
     session,
     profile,
     isLoading,
+    loading: isLoading, // Alias
     isAuthenticated: !!user,
     signInWithGoogle,
     signInWithEmail,
@@ -184,6 +205,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signOut,
     refreshProfile,
     updateProfile,
+    completeOnboarding,
+    // Aliases
+    signIn: signInWithEmail,
+    signUp: signUpWithEmail,
+    login,
   };
 
   return (
