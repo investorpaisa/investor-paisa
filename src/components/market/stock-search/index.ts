@@ -1,2 +1,0 @@
-
-export { StockSearch } from './StockSearch';
