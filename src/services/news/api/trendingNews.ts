@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { NewsArticle } from '@/types';
-import { getMockNews } from '../data/mockNews';
 
 /**
  * Get top trending news articles by relevance score
@@ -20,6 +19,6 @@ export const getTrendingNews = async (limit = 10): Promise<NewsArticle[]> => {
     return data as NewsArticle[] || [];
   } catch (error) {
     console.error('Error fetching trending news:', error);
-    return getMockNews(limit, 'Trending'); // Fallback to mock data if database query fails
+    return [];
   }
 };

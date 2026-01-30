@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { NewsArticle } from '@/types';
-import { getMockNews } from '../data/mockNews';
 
 /**
  * Get latest news articles
@@ -20,6 +19,7 @@ export const getLatestNews = async (limit = 10): Promise<NewsArticle[]> => {
     return data as NewsArticle[] || [];
   } catch (error) {
     console.error('Error fetching latest news:', error);
-    return getMockNews(limit, 'Latest'); // Fallback to mock data if database query fails
+    // Return empty array - no mock data
+    return [];
   }
 };

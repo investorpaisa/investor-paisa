@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { NewsArticle } from '@/types';
-import { getMockNews } from '../data/mockNews';
 
 /**
  * Get news articles by category
@@ -22,6 +21,6 @@ export const getNewsByCategory = async (category: string, limit = 10): Promise<N
     return data as NewsArticle[] || [];
   } catch (error) {
     console.error('Error fetching news by category:', error);
-    return getMockNews(limit, category); // Fallback to mock data if database query fails
+    return [];
   }
 };
