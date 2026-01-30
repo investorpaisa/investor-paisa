@@ -15,8 +15,8 @@ const CompactPostForm = ({ userAvatar, userName, onExpand }: CompactPostFormProp
       onClick={onExpand}
     >
       <Avatar>
-        <AvatarImage src={userAvatar || '/placeholder.svg'} />
-        <AvatarFallback>{userName?.substring(0, 2).toUpperCase() || 'IP'}</AvatarFallback>
+        <AvatarImage src={userAvatar || undefined} />
+        <AvatarFallback>{userName?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
       </Avatar>
       <div className="flex-1 bg-muted rounded-md px-4 py-2 text-muted-foreground">
         Share your financial knowledge or ask a question...

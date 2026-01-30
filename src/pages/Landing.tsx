@@ -51,27 +51,27 @@ const Landing: React.FC = () => {
 
   const testimonials = [
     {
-      name: 'Priya Sharma',
+      name: 'Priya S.',
       role: 'Equity Research Analyst',
-      company: 'HDFC Securities',
+      company: 'Securities Firm',
       content: 'InvestorPaisa helped me connect with seasoned investors and learn practical investment strategies. The community discussions are incredibly valuable.',
-      avatar: '/placeholder.svg',
+      initials: 'PS',
       verified: true
     },
     {
-      name: 'Rahul Verma',
+      name: 'Rahul V.',
       role: 'Mutual Fund Distributor',
-      company: 'Groww',
+      company: 'Investment Platform',
       content: 'The quality of financial discussions and market insights shared here is exceptional. It\'s become my daily source for investment ideas.',
-      avatar: '/placeholder.svg',
+      initials: 'RV',
       verified: true
     },
     {
-      name: 'Ananya Patel',
+      name: 'Ananya P.',
       role: 'Finance Blogger',
       company: 'Personal Finance Pro',
       content: 'From learning about SIPs to understanding market cycles, InvestorPaisa has been instrumental in my financial education journey.',
-      avatar: '/placeholder.svg',
+      initials: 'AP',
       verified: false
     }
   ];
@@ -208,11 +208,9 @@ const Landing: React.FC = () => {
               <Card key={index} className="hover:shadow-lg transition-shadow duration-300 rounded-3xl">
                 <CardContent className="p-8">
                   <div className="flex items-center mb-6">
-                    <img
-                      src={testimonial.avatar}
-                      alt={testimonial.name}
-                      className="w-12 h-12 rounded-full mr-4"
-                    />
+                    <div className="w-12 h-12 rounded-full mr-4 bg-gradient-to-br from-blue-600 to-green-600 flex items-center justify-center text-white font-semibold">
+                      {testimonial.initials}
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
                         <h4 className="font-semibold text-gray-900">{testimonial.name}</h4>
