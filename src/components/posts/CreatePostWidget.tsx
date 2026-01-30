@@ -1,11 +1,9 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { 
-  Image, Video, Calendar, FileText, 
-  Smile, BarChart3, Gift, Camera
+  Image, Video, FileText, BarChart3
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { CreatePostModal } from './CreatePostModal';
@@ -28,35 +26,35 @@ export const CreatePostWidget: React.FC = () => {
     id: profile.id || '1',
     username: profile.username || '',
     full_name: profile.full_name || 'Professional User',
-    headline: 'Financial Professional', // Mock headline
+    headline: profile.headline || 'Financial Professional',
     avatar_url: profile.avatar_url || '',
-    banner_url: '',
-    location: '',
+    banner_url: profile.cover_url || '',
+    location: profile.location || '',
     industry: 'Financial Services',
     current_company: '',
     about: profile.bio || '',
-    followers: profile.followers || 0,
-    following: profile.following || 0,
-    connections: 0, // Mock connections count
-    is_verified: false,
-    premium_member: false, // Mock premium status
-    experience_years: 0 // Mock experience years
+    followers: profile.followers_count || 0,
+    following: profile.following_count || 0,
+    connections: 0,
+    is_verified: profile.is_verified || false,
+    premium_member: profile.is_premium || false,
+    experience_years: 0
   };
 
   return (
     <>
-      <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+      <Card className="bg-card border border-border shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-4">
           <div className="flex items-center space-x-3 mb-4">
             <Avatar className="h-12 w-12">
               <AvatarImage src={profile.avatar_url || ''} alt={profile.full_name || ''} />
-              <AvatarFallback className="bg-blue-600 text-white">
+              <AvatarFallback className="bg-primary text-primary-foreground">
                 {profile.full_name?.charAt(0)?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             <button
               onClick={() => handleCreatePost('text')}
-              className="flex-1 text-left p-4 border border-gray-300 rounded-full text-gray-600 hover:bg-gray-50 transition-colors font-medium"
+              className="flex-1 text-left p-4 border border-border rounded-full text-muted-foreground hover:bg-muted transition-colors font-medium"
             >
               Start a post, share an update...
             </button>
@@ -66,40 +64,40 @@ export const CreatePostWidget: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              className="flex items-center space-x-2 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
               onClick={() => handleCreatePost('image')}
             >
-              <Image className="h-5 w-5 text-blue-600" />
+              <Image className="h-5 w-5 text-primary" />
               <span className="font-medium">Photo</span>
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors"
+              className="flex items-center space-x-2 text-muted-foreground hover:bg-secondary/10 hover:text-secondary-foreground transition-colors"
               onClick={() => handleCreatePost('video')}
             >
-              <Video className="h-5 w-5 text-green-600" />
+              <Video className="h-5 w-5 text-secondary-foreground" />
               <span className="font-medium">Video</span>
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 text-gray-600 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+              className="flex items-center space-x-2 text-muted-foreground hover:bg-accent/10 hover:text-accent-foreground transition-colors"
               onClick={() => handleCreatePost('article')}
             >
-              <FileText className="h-5 w-5 text-orange-600" />
+              <FileText className="h-5 w-5 text-accent-foreground" />
               <span className="font-medium">Article</span>
             </Button>
             
             <Button
               variant="ghost"
               size="sm"
-              className="flex items-center space-x-2 text-gray-600 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+              className="flex items-center space-x-2 text-muted-foreground hover:bg-muted transition-colors"
               onClick={() => handleCreatePost('poll')}
             >
-              <BarChart3 className="h-5 w-5 text-purple-600" />
+              <BarChart3 className="h-5 w-5" />
               <span className="font-medium">Poll</span>
             </Button>
           </div>

@@ -1,31 +1,9 @@
-
-import { useState, useEffect } from 'react';
-import { bookmarkService } from '@/services/engagement';
-import { Post } from '@/types';
+import { useState } from 'react';
 
 export const useBookmarks = () => {
-  const [bookmarkedPosts, setBookmarkedPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchBookmarkedPosts = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const posts = await bookmarkService.getBookmarkedPosts();
-        setBookmarkedPosts(posts);
-      } catch (err) {
-        console.error('Error fetching bookmarked posts:', err);
-        setError('Failed to fetch bookmarks. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchBookmarkedPosts();
-  }, []);
-
-  return { bookmarkedPosts, loading, error };
+  const [bookmarks, setBookmarks] = useState<string[]>([]);
+  const addBookmark = async (entityId: string) => setBookmarks(prev => [...prev, entityId]);
+  const removeBookmark = async (entityId: string) => setBookmarks(prev => prev.filter(id => id !== entityId));
+  const isBookmarked = (entityId: string) => bookmarks.includes(entityId);
+  return { bookmarks, bookmarkedPosts: [], addBookmark, removeBookmark, isBookmarked, loading: false, error: null };
 };

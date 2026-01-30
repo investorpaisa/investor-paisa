@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,15 +14,26 @@ interface FinancialGoalsStepProps {
 }
 
 const goalTypes = [
-  'Retirement Planning',
-  'Emergency Fund',
-  'Home Purchase',
-  'Education Fund',
-  'Wealth Building',
-  'Travel Fund',
-  'Business Investment',
-  'Other'
+  'retirement_planning',
+  'emergency_fund',
+  'home_purchase',
+  'education_fund',
+  'wealth_building',
+  'travel_fund',
+  'business_investment',
+  'other'
 ];
+
+const goalLabels: Record<string, string> = {
+  'retirement_planning': 'Retirement Planning',
+  'emergency_fund': 'Emergency Fund',
+  'home_purchase': 'Home Purchase',
+  'education_fund': 'Education Fund',
+  'wealth_building': 'Wealth Building',
+  'travel_fund': 'Travel Fund',
+  'business_investment': 'Business Investment',
+  'other': 'Other'
+};
 
 const timeframes = [
   '1-2 years',
@@ -39,11 +49,9 @@ export const FinancialGoalsStep: React.FC<FinancialGoalsStepProps> = ({
   showPrevious
 }) => {
   const [formData, setFormData] = useState({
-    primary_goal: data.financial_goals?.primary_goal || '',
-    target_amount: data.financial_goals?.target_amount || '',
-    timeframe: data.financial_goals?.timeframe || '',
-    monthly_investment: data.financial_goals?.monthly_investment || '',
-    selected_goals: data.financial_goals?.selected_goals || []
+    primary_goal: data.goals?.[0] || '',
+    timeframe: '',
+    selected_goals: data.goals || [] as string[]
   });
 
   const handleGoalToggle = (goal: string, checked: boolean) => {
@@ -63,16 +71,15 @@ export const FinancialGoalsStep: React.FC<FinancialGoalsStepProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const financial_goals = {
-      primary_goal: formData.primary_goal,
-      target_amount: formData.target_amount ? parseInt(formData.target_amount) : null,
-      timeframe: formData.timeframe,
-      monthly_investment: formData.monthly_investment ? parseInt(formData.monthly_investment) : null,
-      selected_goals: formData.selected_goals,
-      created_at: new Date().toISOString()
-    };
+    // Combine primary goal with selected goals (deduplicated)
+    const allGoals = new Set<string>();
+    if (formData.primary_goal) {
+      allGoals.add(formData.primary_goal);
+    }
+    formData.selected_goals.forEach(g => allGoals.add(g));
 
-    onComplete({ financial_goals });
+    // Pass goals as a string array which matches the database schema
+    onComplete({ goals: Array.from(allGoals) });
   };
 
   return (
@@ -90,54 +97,30 @@ export const FinancialGoalsStep: React.FC<FinancialGoalsStepProps> = ({
             <SelectContent>
               {goalTypes.map((goal) => (
                 <SelectItem key={goal} value={goal}>
-                  {goal}
+                  {goalLabels[goal] || goal}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="target_amount">Target Amount (₹)</Label>
-            <Input
-              id="target_amount"
-              type="number"
-              value={formData.target_amount}
-              onChange={(e) => setFormData(prev => ({ ...prev, target_amount: e.target.value }))}
-              placeholder="e.g., 5000000"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="timeframe">Timeframe</Label>
-            <Select
-              value={formData.timeframe}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, timeframe: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select timeframe" />
-              </SelectTrigger>
-              <SelectContent>
-                {timeframes.map((timeframe) => (
-                  <SelectItem key={timeframe} value={timeframe}>
-                    {timeframe}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
         <div>
-          <Label htmlFor="monthly_investment">Monthly Investment Capacity (₹)</Label>
-          <Input
-            id="monthly_investment"
-            type="number"
-            value={formData.monthly_investment}
-            onChange={(e) => setFormData(prev => ({ ...prev, monthly_investment: e.target.value }))}
-            placeholder="e.g., 10000"
-          />
+          <Label htmlFor="timeframe">Investment Timeframe</Label>
+          <Select
+            value={formData.timeframe}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, timeframe: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select timeframe" />
+            </SelectTrigger>
+            <SelectContent>
+              {timeframes.map((timeframe) => (
+                <SelectItem key={timeframe} value={timeframe}>
+                  {timeframe}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -151,7 +134,7 @@ export const FinancialGoalsStep: React.FC<FinancialGoalsStepProps> = ({
                   onCheckedChange={(checked) => handleGoalToggle(goal, checked as boolean)}
                 />
                 <Label htmlFor={goal} className="text-sm cursor-pointer">
-                  {goal}
+                  {goalLabels[goal] || goal}
                 </Label>
               </div>
             ))}
