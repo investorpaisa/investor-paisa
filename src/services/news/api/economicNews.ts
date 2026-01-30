@@ -1,6 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { NewsArticle } from '@/types';
-import { getMockNews } from '../data/mockNews';
 
 /**
  * Get economic news from NewsAPI and other sources
@@ -31,9 +31,9 @@ export const getEconomicNews = async (limit = 10): Promise<NewsArticle[]> => {
     });
     
     if (response.error) throw response.error;
-    return response.data as NewsArticle[] || getMockNews(limit, 'Economy');
+    return response.data as NewsArticle[] || [];
   } catch (error) {
     console.error('Error fetching economic news:', error);
-    return getMockNews(limit, 'Economy'); // Fallback to mock data if API calls fail
+    return [];
   }
 };

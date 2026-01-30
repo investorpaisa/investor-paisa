@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useUserData } from '@/hooks/useUserData';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useCreatePost } from '@/hooks/usePosts';
 import { toast } from 'sonner';
-import { mockUsers, categories } from '@/data/mockData';
 
 interface PostFormData {
   title: string;
@@ -26,6 +26,8 @@ interface UsePostFormProps {
 export const usePostForm = ({ onSuccess, onCancel, circleId, onPostCreated }: UsePostFormProps) => {
   const userData = useUserData();
   const { addPostToProfile } = useProfileData();
+  const createPost = useCreatePost();
+  
   const [formData, setFormData] = useState<PostFormData>({
     title: '',
     content: '',
@@ -129,7 +131,7 @@ export const usePostForm = ({ onSuccess, onCancel, circleId, onPostCreated }: Us
   };
 
   const handleSubmit = async () => {
-    const { title, content, category, shareMode, selectedCircle, selectedUser } = formData;
+    const { title, content } = formData;
     
     if (!title.trim()) {
       toast.error('Please add a title to your post');
@@ -144,58 +146,17 @@ export const usePostForm = ({ onSuccess, onCancel, circleId, onPostCreated }: Us
     setLoading(true);
 
     try {
-      // In a real app, this would be an API call to create the post
-      setTimeout(() => {
-        let successMessage = 'Post created successfully';
-        
-        if (shareMode === 'circle' && selectedCircle) {
-          // In a real implementation, we would get the circle name from the circles data
-          successMessage = `Post shared to circle`;
-        } else if (shareMode === 'user' && selectedUser) {
-          const userName = mockUsers.find(u => u.id === selectedUser)?.name || 'user';
-          successMessage = `Post sent to ${userName}`;
-        }
-        
-        const categoryName = category ? categories.find(c => c.id === category)?.name : undefined;
-        
-        const newPost = {
-          id: Math.floor(Math.random() * 1000).toString(),
-          author: {
-            name: userData?.name || 'User',
-            username: userData?.username || 'user',
-            avatar: userData?.avatar || '/placeholder.svg',
-            role: userData?.role || 'user',
-            verified: false,
-          },
-          category: categoryName,
-          title: title,
-          content: content,
-          timestamp: 'Just now',
-          likes: 0,
-          comments: 0,
-          shares: 0,
-          saved: false,
-        };
-        
-        toast.success(successMessage);
-        
-        // Add post to feed via callback
-        if (onPostCreated) {
-          onPostCreated(newPost);
-        }
-        
-        // Add post to profile
-        if (addPostToProfile) {
-          addPostToProfile(newPost);
-        }
-        
-        resetForm();
-        if (onSuccess) onSuccess();
-        setLoading(false);
-      }, 1000);
+      await createPost.mutateAsync({
+        title: title.trim(),
+        body: content.trim(),
+        type: 'insight',
+      });
+      
+      resetForm();
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Error creating post:', error);
-      toast.error('Failed to create post. Please try again.');
+    } finally {
       setLoading(false);
     }
   };

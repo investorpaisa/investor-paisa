@@ -1,6 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { NewsArticle } from '@/types';
-import { getMockNews } from '../data/mockNews';
 
 /**
  * Get financial trends from Alpha Vantage
@@ -31,9 +31,9 @@ export const getFinancialTrends = async (limit = 10): Promise<NewsArticle[]> => 
     });
     
     if (response.error) throw response.error;
-    return response.data as NewsArticle[] || getMockNews(limit, 'Financial');
+    return response.data as NewsArticle[] || [];
   } catch (error) {
     console.error('Error fetching financial trends:', error);
-    return getMockNews(limit, 'Financial'); // Fallback to mock data if API calls fail
+    return [];
   }
 };
