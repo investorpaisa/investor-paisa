@@ -72,8 +72,9 @@ export async function makeRapidApiRequest(url: string, fallbackFn?: Function, at
     }
     
     return await response.json();
-  } catch (error) {
-    console.error(`Error in API request: ${error.message}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error in API request: ${errorMessage}`);
     
     if (fallbackFn) {
       console.log("Using fallback data due to error");

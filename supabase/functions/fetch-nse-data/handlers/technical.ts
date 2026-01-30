@@ -177,10 +177,10 @@ export async function getTechnicalIndicator(req: Request, params: {
           };
         });
     }
-    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
-        error: `Failed to fetch technical indicator: ${error.message}`,
+        error: `Failed to fetch technical indicator: ${errorMessage}`,
         mockData: {
           metadata: {
             symbol: params.symbol || 'MSFT',

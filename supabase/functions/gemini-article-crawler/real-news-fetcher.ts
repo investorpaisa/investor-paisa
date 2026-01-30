@@ -96,7 +96,7 @@ function parseRSSXML(xmlText: string): any[] {
 export const fetchRealNewsArticles = async (category: string, limit: number = 5): Promise<RealNewsArticle[]> => {
   console.log(`Fetching real news for category: ${category}, limit: ${limit}`);
   
-  const feedUrls = RSS_FEEDS[category] || RSS_FEEDS['Business'];
+  const feedUrls = (RSS_FEEDS as Record<string, string[]>)[category] || RSS_FEEDS['Business'];
   const articles: RealNewsArticle[] = [];
   
   try {

@@ -48,11 +48,12 @@ export async function getForexRate(req: Request, params: { from_currency: string
       JSON.stringify(result),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching forex rate:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({
-        error: `Failed to fetch forex rate: ${error.message}`,
+        error: `Failed to fetch forex rate: ${errorMessage}`,
         mockData: {
           fromCurrency: params.from_currency || 'USD',
           toCurrency: params.to_currency || 'INR',
@@ -171,11 +172,12 @@ export async function getForexTimeSeries(req: Request, params: {
       JSON.stringify(result),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching forex time series:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ 
-        error: `Failed to fetch forex time series: ${error.message}`,
+        error: `Failed to fetch forex time series: ${errorMessage}`,
         mockData: {
           metadata: {
             information: 'Mock Forex Time Series',

@@ -1,6 +1,9 @@
-import { supabase } from '@/integrations/supabase/client';
 
-export { supabase };
+// Re-export the resilient Supabase client
+// This file provides a single point of import for Supabase throughout the app
+import { supabase, VITE_SUPABASE_URL } from './supabaseClient';
+
+export { supabase, VITE_SUPABASE_URL };
 
 // Helper to get the current user
 export async function getCurrentUser() {
