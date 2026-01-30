@@ -134,10 +134,10 @@ export async function getCryptoTimeSeries(req: Request, params: any) {
             JSON.stringify({
               symbol,
               market,
-              prices: geckoData.prices.map(([timestamp, price]) => ({
-                timestamp: new Date(timestamp).toISOString(),
-                price
-              })),
+          prices: geckoData.prices.map(([timestamp, price]: [number, number]) => ({
+            timestamp: new Date(timestamp).toISOString(),
+            price
+          })),
               metadata: {
                 information: "Data from CoinGecko API",
                 symbol,

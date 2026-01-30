@@ -43,13 +43,15 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : '';
     console.error('=== Critical Error in News Crawler ===');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Error message:', errorMessage);
+    console.error('Error stack:', errorStack);
     
     return new Response(JSON.stringify({ 
-      error: `Critical error: ${error.message}`,
+      error: `Critical error: ${errorMessage}`,
       success: false,
       articles: []
     }), {

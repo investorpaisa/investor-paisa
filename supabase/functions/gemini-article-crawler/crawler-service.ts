@@ -62,8 +62,9 @@ export const crawlArticles = async (
         try {
           console.log(`Enhancing summary with Gemini for article: ${article.title.substring(0, 30)}...`);
           enhancedSummary = await summarizeContent(article.title, article.summary, article.source);
-        } catch (error) {
-          console.error(`Failed to enhance summary for article: ${error.message}`);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`Failed to enhance summary for article: ${errorMessage}`);
           // Keep original summary on error
         }
       }
@@ -101,7 +102,7 @@ export const crawlArticles = async (
         return {
           success: false,
           articles: [],
-          message: `Failed to save articles to database: ${insertError.message}`,
+          message: `Failed to save articles to database: ${String(insertError)}`,
           costOptimizations: {
             apiCallsUsed: filteredArticles.length,
             duplicatesFiltered: articles.length - filteredArticles.length,
@@ -128,12 +129,13 @@ export const crawlArticles = async (
       }
     };
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Critical error in crawlArticles:', error);
     return {
       success: false,
       articles: [],
-      message: `Crawler error: ${error.message}`,
+      message: `Crawler error: ${errorMessage}`,
       costOptimizations: {
         apiCallsUsed: 0,
         duplicatesFiltered: 0,
