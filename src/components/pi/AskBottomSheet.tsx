@@ -149,15 +149,6 @@ export const AskBottomSheet: React.FC<AskBottomSheetProps> = ({ onAskPaisaBot, o
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold font-heading">Ask a Question</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onAskPaisaBot}
-            className="gap-2 text-primary"
-          >
-            <MessageCircle className="h-4 w-4" />
-            Chat with Pi
-          </Button>
         </div>
 
         {/* Input */}

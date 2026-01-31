@@ -17,10 +17,8 @@ import {
   Bitcoin,
   IndianRupee,
   Home,
-  Users,
   MessageCircle,
-  Bell,
-  LogOut
+  Bell
 } from "lucide-react";
 import { useMarketBatch, useForexRate, useCryptoQuote } from "@/hooks/useMarketData";
 import { cn } from "@/lib/utils";
@@ -183,26 +181,11 @@ function CryptoCard({ symbol, enabled }: { symbol: string; enabled: boolean }) {
 function MarketNav() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account."
-      });
-      navigate('/');
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
-  };
 
   const navigation = [
-    { name: 'Home', href: '/home', icon: Home },
+    { name: 'Home', href: '/feed', icon: Home },
     { name: 'Markets', href: '/markets', icon: BarChart3 },
-    { name: 'Circles', href: '/circles', icon: Users },
-    { name: 'Messages', href: '/inbox', icon: MessageCircle },
+    { name: 'Messages', href: '/messages', icon: MessageCircle },
     { name: 'Notifications', href: '/notifications', icon: Bell },
   ];
 
@@ -237,15 +220,6 @@ function MarketNav() {
                     {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8 p-0"
-              >
-                <LogOut className="h-4 w-4" />
               </Button>
             </div>
           </div>

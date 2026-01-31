@@ -11,10 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Edit, Mail, Users, MessageCircle, Calendar, Briefcase, 
-  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus
+  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus, LogOut
 } from 'lucide-react';
 import { useToggleFollow, useIsFollowing } from '@/hooks/useFollows';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 const Profile = () => {
   const { id } = useParams();
@@ -24,6 +25,17 @@ const Profile = () => {
   // Determine if we're viewing own profile or someone else's
   const isOwnProfile = !id || id === user?.id || id === currentUserProfile?.username;
   const profileId = isOwnProfile ? user?.id : id;
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success("Logged out successfully");
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast.error("Error logging out");
+    }
+  };
 
   // Fetch profile data
   const { data: profile, isLoading, error } = useQuery({
@@ -94,7 +106,7 @@ const Profile = () => {
 
   const handleFollow = () => {
     if (!user) {
-      navigate('/auth/login');
+      navigate('/auth');
       return;
     }
     if (profile?.id) {
@@ -105,7 +117,7 @@ const Profile = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="container max-w-4xl mx-auto py-6 px-4 space-y-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
@@ -125,13 +137,15 @@ const Profile = () => {
   // Error state
   if (error || !profile) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Profile Not Found</h2>
-        <p className="text-muted-foreground mb-4">
-          The profile you're looking for doesn't exist or has been removed.
-        </p>
-        <Button onClick={() => navigate('/feed')}>Go to Feed</Button>
+      <div className="container max-w-4xl mx-auto py-6 px-4">
+        <div className="flex flex-col items-center justify-center py-20">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Profile Not Found</h2>
+          <p className="text-muted-foreground mb-4">
+            The profile you're looking for doesn't exist or has been removed.
+          </p>
+          <Button onClick={() => navigate('/feed')}>Go to Feed</Button>
+        </div>
       </div>
     );
   }
@@ -142,7 +156,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="container max-w-4xl mx-auto py-6 px-4 space-y-6">
       <Card>
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
@@ -388,6 +402,22 @@ const Profile = () => {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Logout Button - Only visible on own profile */}
+      {isOwnProfile && (
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <Button
+              variant="destructive"
+              onClick={handleLogout}
+              className="w-full"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Log out
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

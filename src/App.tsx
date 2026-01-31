@@ -14,14 +14,11 @@ import Feed from "@/pages/Feed";
 import PostDetail from "@/pages/PostDetail";
 import Profile from "@/pages/Profile";
 import EditProfile from "@/pages/EditProfile";
-import Discover from "@/pages/Discover";
 import Inbox from "@/pages/Inbox";
 import MessagesNew from "@/pages/MessagesNew";
 import Notifications from "@/pages/Notifications";
 import Markets from "@/pages/Markets";
 import StockDetail from "@/pages/StockDetail";
-import Live from "@/pages/Live";
-import LiveSession from "@/pages/LiveSession";
 import ExpertProfile from "@/pages/ExpertProfile";
 import NotFound from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -87,11 +84,6 @@ function App() {
                     </MainLayout>
                   </ProtectedRoute>
                 } />
-                <Route path="/discover" element={
-                  <MainLayout>
-                    <Discover />
-                  </MainLayout>
-                } />
                 <Route path="/inbox" element={
                   <ProtectedRoute>
                     <MainLayout>
@@ -131,18 +123,6 @@ function App() {
                   </MainLayout>
                 } />
                 
-                {/* Live Sessions */}
-                <Route path="/live" element={
-                  <MainLayout>
-                    <Live />
-                  </MainLayout>
-                } />
-                <Route path="/live/:sessionId" element={
-                  <MainLayout>
-                    <LiveSession />
-                  </MainLayout>
-                } />
-                
                 {/* Expert Profile */}
                 <Route path="/expert/:expertId" element={
                   <MainLayout>
@@ -154,9 +134,12 @@ function App() {
                 <Route path="/home" element={<Navigate to="/feed" replace />} />
                 <Route path="/professional" element={<Navigate to="/feed" replace />} />
                 <Route path="/dashboard" element={<Navigate to="/feed" replace />} />
-                <Route path="/circles" element={<Navigate to="/discover" replace />} />
-                <Route path="/circle/:circleId" element={<Navigate to="/discover" replace />} />
-                <Route path="/network" element={<Navigate to="/discover" replace />} />
+                <Route path="/circles" element={<Navigate to="/feed" replace />} />
+                <Route path="/circle/:circleId" element={<Navigate to="/feed" replace />} />
+                <Route path="/network" element={<Navigate to="/feed" replace />} />
+                <Route path="/discover" element={<Navigate to="/feed" replace />} />
+                <Route path="/live" element={<Navigate to="/feed" replace />} />
+                <Route path="/live/:sessionId" element={<Navigate to="/feed" replace />} />
                 
                 {/* 404 */}
                 <Route path="*" element={<NotFound />} />

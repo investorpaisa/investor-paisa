@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LandingFeedPreview } from '@/components/landing/LandingFeedPreview';
+import logoIcon from '@/assets/logo-icon.png';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -73,9 +74,11 @@ const Landing: React.FC = () => {
       <header className="relative z-20 px-6 py-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center glow-primary">
-              <TrendingUp className="text-primary-foreground h-5 w-5" />
-            </div>
+            <img 
+              src={logoIcon} 
+              alt="InvestorPaisa" 
+              className="w-10 h-10 rounded-xl"
+            />
             <span className="font-bold text-xl font-heading">
               Investor<span className="text-primary">Paisa</span>
             </span>
