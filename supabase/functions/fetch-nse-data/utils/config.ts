@@ -1,11 +1,15 @@
 
 export const RAPIDAPI_HOST = "alpha-vantage.p.rapidapi.com";
-export const RAPIDAPI_KEY = Deno.env.get("RAPIDAPI_KEY") || "23ec2c7ac8mshca999ef26c89cebp1512c6jsne5275655a950";
-export const ALPHA_VANTAGE_API_KEY = Deno.env.get("ALPHA_VANTAGE_API_KEY");
+export const RAPIDAPI_KEY = Deno.env.get("RAPIDAPI_KEY") || "";
+export const ALPHA_VANTAGE_API_KEY = Deno.env.get("ALPHA_VANTAGE_API_KEY") || "";
 
-// If we can't find the RapidAPI key in environment variables, use the provided key
-if (!RAPIDAPI_KEY || RAPIDAPI_KEY === "23ec2c7ac8mshca999ef26c89cebp1512c6jsne5275655a950") {
-  console.log("Using provided RAPIDAPI_KEY for Alpha Vantage API");
+// Validate API key is configured
+if (!RAPIDAPI_KEY) {
+  console.error("RAPIDAPI_KEY is not configured in environment variables");
+}
+
+export function isApiConfigured(): boolean {
+  return !!RAPIDAPI_KEY;
 }
 
 // Alpha Vantage rate limits

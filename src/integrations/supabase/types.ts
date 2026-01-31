@@ -551,6 +551,219 @@ export type Database = {
         }
         Relationships: []
       }
+      market_crypto: {
+        Row: {
+          change: number | null
+          high_24h: number | null
+          id: string
+          low_24h: number | null
+          market_cap: number | null
+          percent_change: number | null
+          price: number
+          provider: string
+          symbol: string
+          timestamp: string
+          updated_at: string
+          volume_24h: number | null
+        }
+        Insert: {
+          change?: number | null
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          market_cap?: number | null
+          percent_change?: number | null
+          price: number
+          provider: string
+          symbol: string
+          timestamp: string
+          updated_at?: string
+          volume_24h?: number | null
+        }
+        Update: {
+          change?: number | null
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          market_cap?: number | null
+          percent_change?: number | null
+          price?: number
+          provider?: string
+          symbol?: string
+          timestamp?: string
+          updated_at?: string
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
+      market_forex: {
+        Row: {
+          ask: number | null
+          bid: number | null
+          change: number | null
+          id: string
+          pair: string
+          percent_change: number | null
+          provider: string
+          rate: number
+          timestamp: string
+          updated_at: string
+        }
+        Insert: {
+          ask?: number | null
+          bid?: number | null
+          change?: number | null
+          id?: string
+          pair: string
+          percent_change?: number | null
+          provider: string
+          rate: number
+          timestamp: string
+          updated_at?: string
+        }
+        Update: {
+          ask?: number | null
+          bid?: number | null
+          change?: number | null
+          id?: string
+          pair?: string
+          percent_change?: number | null
+          provider?: string
+          rate?: number
+          timestamp?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      market_indicators: {
+        Row: {
+          created_at: string
+          id: string
+          indicator: string
+          interval: string
+          period: number
+          provider: string
+          symbol: string
+          timestamp: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          indicator: string
+          interval: string
+          period: number
+          provider: string
+          symbol: string
+          timestamp: string
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          indicator?: string
+          interval?: string
+          period?: number
+          provider?: string
+          symbol?: string
+          timestamp?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      market_ohlc: {
+        Row: {
+          close: number
+          created_at: string
+          high: number
+          id: string
+          interval: string
+          low: number
+          open: number
+          provider: string
+          symbol: string
+          timestamp: string
+          volume: number | null
+        }
+        Insert: {
+          close: number
+          created_at?: string
+          high: number
+          id?: string
+          interval: string
+          low: number
+          open: number
+          provider: string
+          symbol: string
+          timestamp: string
+          volume?: number | null
+        }
+        Update: {
+          close?: number
+          created_at?: string
+          high?: number
+          id?: string
+          interval?: string
+          low?: number
+          open?: number
+          provider?: string
+          symbol?: string
+          timestamp?: string
+          volume?: number | null
+        }
+        Relationships: []
+      }
+      market_quotes: {
+        Row: {
+          change: number | null
+          high: number | null
+          id: string
+          low: number | null
+          market_type: string
+          open: number | null
+          percent_change: number | null
+          previous_close: number | null
+          price: number
+          provider: string
+          symbol: string
+          timestamp: string
+          updated_at: string
+          volume: number | null
+        }
+        Insert: {
+          change?: number | null
+          high?: number | null
+          id?: string
+          low?: number | null
+          market_type?: string
+          open?: number | null
+          percent_change?: number | null
+          previous_close?: number | null
+          price: number
+          provider: string
+          symbol: string
+          timestamp: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Update: {
+          change?: number | null
+          high?: number | null
+          id?: string
+          low?: number | null
+          market_type?: string
+          open?: number | null
+          percent_change?: number | null
+          previous_close?: number | null
+          price?: number
+          provider?: string
+          symbol?: string
+          timestamp?: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           body: string | null

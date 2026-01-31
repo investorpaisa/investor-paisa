@@ -21,6 +21,8 @@ import Circle from "@/pages/Circle";
 import Circles from "@/pages/Circles";
 import Feed from "@/pages/Feed";
 import Dashboard from "@/pages/Dashboard";
+import Markets from "@/pages/Markets";
+import StockDetail from "@/pages/StockDetail";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 
@@ -110,6 +112,16 @@ function App() {
                 <Route path="/network" element={
                   <ProtectedRoute>
                     <Circles />
+                  </ProtectedRoute>
+                } />
+                <Route path="/markets" element={
+                  <ProtectedRoute>
+                    <Markets />
+                  </ProtectedRoute>
+                } />
+                <Route path="/markets/:symbol" element={
+                  <ProtectedRoute>
+                    <StockDetail />
                   </ProtectedRoute>
                 } />
                 
