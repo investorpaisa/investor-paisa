@@ -20,6 +20,9 @@ import MessagesNew from "@/pages/MessagesNew";
 import Notifications from "@/pages/Notifications";
 import Markets from "@/pages/Markets";
 import StockDetail from "@/pages/StockDetail";
+import Live from "@/pages/Live";
+import LiveSession from "@/pages/LiveSession";
+import ExpertProfile from "@/pages/ExpertProfile";
 import NotFound from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
@@ -125,6 +128,25 @@ function App() {
                 <Route path="/markets/:symbol" element={
                   <MainLayout>
                     <StockDetail />
+                  </MainLayout>
+                } />
+                
+                {/* Live Sessions */}
+                <Route path="/live" element={
+                  <MainLayout>
+                    <Live />
+                  </MainLayout>
+                } />
+                <Route path="/live/:sessionId" element={
+                  <MainLayout>
+                    <LiveSession />
+                  </MainLayout>
+                } />
+                
+                {/* Expert Profile */}
+                <Route path="/expert/:expertId" element={
+                  <MainLayout>
+                    <ExpertProfile />
                   </MainLayout>
                 } />
                 

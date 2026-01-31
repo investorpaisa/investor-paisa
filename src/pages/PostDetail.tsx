@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +14,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AnswerBottomSheet } from '@/components/answer/AnswerBottomSheet';
+import { useUIStore } from '@/stores/uiStore';
 
 interface Answer {
   id: string;
@@ -84,6 +86,8 @@ const PostDetail: React.FC = () => {
   const { user } = useAuth();
   const toggleReaction = useToggleReaction();
   const toggleBookmark = useToggleBookmark();
+  const { isAnswerSheetOpen, openAnswerSheet, closeAnswerSheet } = useUIStore();
+  const [showAnswerSheet, setShowAnswerSheet] = useState(false);
 
   // Fetch post
   const { data: post, isLoading: postLoading, error: postError } = useQuery({
@@ -315,7 +319,16 @@ const PostDetail: React.FC = () => {
             <h2 className="text-lg font-medium">
               {answers && answers.length > 0 ? `${answers.length} Answers` : 'Answers'}
             </h2>
-            <Button className="bg-primary text-primary-foreground">
+            <Button 
+              className="bg-primary text-primary-foreground"
+              onClick={() => {
+                if (!user) {
+                  navigate('/auth');
+                  return;
+                }
+                setShowAnswerSheet(true);
+              }}
+            >
               Answer
             </Button>
           </div>
@@ -326,7 +339,16 @@ const PostDetail: React.FC = () => {
                 <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-medium mb-2">No answers yet</h3>
                 <p className="text-muted-foreground text-sm mb-4">Be the first to help!</p>
-                <Button className="bg-primary text-primary-foreground">
+                <Button 
+                  className="bg-primary text-primary-foreground"
+                  onClick={() => {
+                    if (!user) {
+                      navigate('/auth');
+                      return;
+                    }
+                    setShowAnswerSheet(true);
+                  }}
+                >
                   Write an Answer
                 </Button>
               </CardContent>
@@ -383,6 +405,18 @@ const PostDetail: React.FC = () => {
           ))}
         </div>
       </motion.div>
+
+      {/* Answer Bottom Sheet */}
+      <AnimatePresence>
+        {showAnswerSheet && post && (
+          <AnswerBottomSheet
+            postId={post.id}
+            postTitle={post.title}
+            postBody={post.body}
+            onClose={() => setShowAnswerSheet(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

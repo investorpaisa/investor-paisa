@@ -5,3 +5,21 @@ verify_jwt = false
 
 [functions.market-ai]
 verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.ai-rewrite]
+verify_jwt = false
+
+[functions.ai-generate-answer]
+verify_jwt = false
+
+[functions.ai-convert-link]
+verify_jwt = false
+
+[functions.ai-suggest-tags]
+verify_jwt = false
+
+[functions.lives]
+verify_jwt = false
