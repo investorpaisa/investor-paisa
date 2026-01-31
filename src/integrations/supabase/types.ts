@@ -1231,16 +1231,19 @@ export type Database = {
           goals: string[] | null
           headline: string | null
           id: string
+          instagram_url: string | null
           interests: string[] | null
           is_expert: boolean | null
           is_premium: boolean | null
           is_verified: boolean | null
           language: string | null
           linkedin_id: string | null
+          linkedin_url: string | null
           linkedin_verified: boolean | null
           location: string | null
           mobile_verified: boolean | null
           onboarding_completed: boolean | null
+          phone: string | null
           portfolio_change: number | null
           portfolio_value: number | null
           posts_count: number | null
@@ -1249,6 +1252,7 @@ export type Database = {
           tier: Database["public"]["Enums"]["user_tier"] | null
           trust_level: Database["public"]["Enums"]["trust_level"] | null
           trust_score: number | null
+          twitter_url: string | null
           updated_at: string
           upvote_rate: number | null
           username: string | null
@@ -1266,16 +1270,19 @@ export type Database = {
           goals?: string[] | null
           headline?: string | null
           id: string
+          instagram_url?: string | null
           interests?: string[] | null
           is_expert?: boolean | null
           is_premium?: boolean | null
           is_verified?: boolean | null
           language?: string | null
           linkedin_id?: string | null
+          linkedin_url?: string | null
           linkedin_verified?: boolean | null
           location?: string | null
           mobile_verified?: boolean | null
           onboarding_completed?: boolean | null
+          phone?: string | null
           portfolio_change?: number | null
           portfolio_value?: number | null
           posts_count?: number | null
@@ -1284,6 +1291,7 @@ export type Database = {
           tier?: Database["public"]["Enums"]["user_tier"] | null
           trust_level?: Database["public"]["Enums"]["trust_level"] | null
           trust_score?: number | null
+          twitter_url?: string | null
           updated_at?: string
           upvote_rate?: number | null
           username?: string | null
@@ -1301,16 +1309,19 @@ export type Database = {
           goals?: string[] | null
           headline?: string | null
           id?: string
+          instagram_url?: string | null
           interests?: string[] | null
           is_expert?: boolean | null
           is_premium?: boolean | null
           is_verified?: boolean | null
           language?: string | null
           linkedin_id?: string | null
+          linkedin_url?: string | null
           linkedin_verified?: boolean | null
           location?: string | null
           mobile_verified?: boolean | null
           onboarding_completed?: boolean | null
+          phone?: string | null
           portfolio_change?: number | null
           portfolio_value?: number | null
           posts_count?: number | null
@@ -1319,6 +1330,7 @@ export type Database = {
           tier?: Database["public"]["Enums"]["user_tier"] | null
           trust_level?: Database["public"]["Enums"]["trust_level"] | null
           trust_score?: number | null
+          twitter_url?: string | null
           updated_at?: string
           upvote_rate?: number | null
           username?: string | null
@@ -1572,6 +1584,27 @@ export type Database = {
           },
         ]
       }
+      skill_suggestions: {
+        Row: {
+          category: string | null
+          id: string
+          name: string
+          usage_count: number | null
+        }
+        Insert: {
+          category?: string | null
+          id?: string
+          name: string
+          usage_count?: number | null
+        }
+        Update: {
+          category?: string | null
+          id?: string
+          name?: string
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           created_at: string
@@ -1729,6 +1762,195 @@ export type Database = {
           },
         ]
       }
+      user_certifications: {
+        Row: {
+          created_at: string | null
+          credential_id: string | null
+          credential_url: string | null
+          expiry_month: number | null
+          expiry_year: number | null
+          id: string
+          issue_month: number | null
+          issue_year: number | null
+          issuing_organization: string
+          name: string
+          no_expiry: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          credential_id?: string | null
+          credential_url?: string | null
+          expiry_month?: number | null
+          expiry_year?: number | null
+          id?: string
+          issue_month?: number | null
+          issue_year?: number | null
+          issuing_organization: string
+          name: string
+          no_expiry?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          credential_id?: string | null
+          credential_url?: string | null
+          expiry_month?: number | null
+          expiry_year?: number | null
+          id?: string
+          issue_month?: number | null
+          issue_year?: number | null
+          issuing_organization?: string
+          name?: string
+          no_expiry?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_certifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_certifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_educations: {
+        Row: {
+          created_at: string | null
+          degree: string | null
+          description: string | null
+          end_month: number | null
+          end_year: number | null
+          field_of_study: string | null
+          id: string
+          is_current: boolean | null
+          school: string
+          start_month: number | null
+          start_year: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          degree?: string | null
+          description?: string | null
+          end_month?: number | null
+          end_year?: number | null
+          field_of_study?: string | null
+          id?: string
+          is_current?: boolean | null
+          school: string
+          start_month?: number | null
+          start_year?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          degree?: string | null
+          description?: string | null
+          end_month?: number | null
+          end_year?: number | null
+          field_of_study?: string | null
+          id?: string
+          is_current?: boolean | null
+          school?: string
+          start_month?: number | null
+          start_year?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_educations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_educations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_experiences: {
+        Row: {
+          company: string
+          created_at: string | null
+          description: string | null
+          end_month: number | null
+          end_year: number | null
+          id: string
+          is_current: boolean | null
+          location: string | null
+          start_month: number | null
+          start_year: number | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company: string
+          created_at?: string | null
+          description?: string | null
+          end_month?: number | null
+          end_year?: number | null
+          id?: string
+          is_current?: boolean | null
+          location?: string | null
+          start_month?: number | null
+          start_year?: number | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string | null
+          description?: string | null
+          end_month?: number | null
+          end_year?: number | null
+          id?: string
+          is_current?: boolean | null
+          location?: string | null
+          start_month?: number | null
+          start_year?: number | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_experiences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_experiences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1749,6 +1971,42 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_skills: {
+        Row: {
+          created_at: string | null
+          id: string
+          skill_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          skill_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          skill_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_skills_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_skills_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

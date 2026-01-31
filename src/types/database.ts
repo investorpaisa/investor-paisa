@@ -36,6 +36,13 @@ export interface Profile {
   posts_count: number;
   portfolio_value: number | null;
   portfolio_change: number | null;
+  mobile_verified: boolean;
+  linkedin_verified: boolean;
+  linkedin_id: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+  instagram_url: string | null;
   created_at: string;
   updated_at: string;
 }

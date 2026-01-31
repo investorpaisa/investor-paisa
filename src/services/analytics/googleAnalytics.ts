@@ -52,4 +52,10 @@ export const trackEvents = {
   repost: (postId: string) => trackEvent('repost', 'engagement', postId),
   share: (type: string, id: string) => trackEvent('share', 'engagement', `${type}:${id}`),
   messageSend: () => trackEvent('message_send', 'messaging'),
+  // Edit Profile events
+  editProfileOpen: () => trackEvent('edit_profile_open', 'profile'),
+  mobileVerifyStart: () => trackEvent('mobile_verify_start', 'verification'),
+  mobileVerifySuccess: () => trackEvent('mobile_verify_success', 'verification'),
+  linkedinConnect: () => trackEvent('linkedin_connect', 'verification'),
+  profileSave: () => trackEvent('profile_save', 'profile'),
 };
