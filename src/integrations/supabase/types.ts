@@ -1247,6 +1247,10 @@ export type Database = {
           portfolio_change: number | null
           portfolio_value: number | null
           posts_count: number | null
+          privacy_certifications: boolean | null
+          privacy_education: boolean | null
+          privacy_experience: boolean | null
+          privacy_skills: boolean | null
           profile_completeness_score: number | null
           streak_days: number | null
           tier: Database["public"]["Enums"]["user_tier"] | null
@@ -1286,6 +1290,10 @@ export type Database = {
           portfolio_change?: number | null
           portfolio_value?: number | null
           posts_count?: number | null
+          privacy_certifications?: boolean | null
+          privacy_education?: boolean | null
+          privacy_experience?: boolean | null
+          privacy_skills?: boolean | null
           profile_completeness_score?: number | null
           streak_days?: number | null
           tier?: Database["public"]["Enums"]["user_tier"] | null
@@ -1325,6 +1333,10 @@ export type Database = {
           portfolio_change?: number | null
           portfolio_value?: number | null
           posts_count?: number | null
+          privacy_certifications?: boolean | null
+          privacy_education?: boolean | null
+          privacy_experience?: boolean | null
+          privacy_skills?: boolean | null
           profile_completeness_score?: number | null
           streak_days?: number | null
           tier?: Database["public"]["Enums"]["user_tier"] | null
@@ -2022,24 +2034,24 @@ export type Database = {
           goals: string[] | null
           headline: string | null
           id: string | null
+          instagram_url: string | null
           interests: string[] | null
           is_expert: boolean | null
           is_premium: boolean | null
           is_verified: boolean | null
-          language: string | null
-          linkedin_id: string | null
-          linkedin_verified: boolean | null
+          linkedin_url: string | null
           location: string | null
-          mobile_verified: boolean | null
-          onboarding_completed: boolean | null
           posts_count: number | null
+          privacy_certifications: boolean | null
+          privacy_education: boolean | null
+          privacy_experience: boolean | null
+          privacy_skills: boolean | null
           profile_completeness_score: number | null
-          streak_days: number | null
           tier: Database["public"]["Enums"]["user_tier"] | null
           trust_level: Database["public"]["Enums"]["trust_level"] | null
           trust_score: number | null
+          twitter_url: string | null
           updated_at: string | null
-          upvote_rate: number | null
           username: string | null
           website: string | null
         }
@@ -2054,24 +2066,24 @@ export type Database = {
           goals?: string[] | null
           headline?: string | null
           id?: string | null
+          instagram_url?: string | null
           interests?: string[] | null
           is_expert?: boolean | null
           is_premium?: boolean | null
           is_verified?: boolean | null
-          language?: string | null
-          linkedin_id?: string | null
-          linkedin_verified?: boolean | null
+          linkedin_url?: string | null
           location?: string | null
-          mobile_verified?: boolean | null
-          onboarding_completed?: boolean | null
           posts_count?: number | null
+          privacy_certifications?: boolean | null
+          privacy_education?: boolean | null
+          privacy_experience?: boolean | null
+          privacy_skills?: boolean | null
           profile_completeness_score?: number | null
-          streak_days?: number | null
           tier?: Database["public"]["Enums"]["user_tier"] | null
           trust_level?: Database["public"]["Enums"]["trust_level"] | null
           trust_score?: number | null
+          twitter_url?: string | null
           updated_at?: string | null
-          upvote_rate?: number | null
           username?: string | null
           website?: string | null
         }
@@ -2086,24 +2098,24 @@ export type Database = {
           goals?: string[] | null
           headline?: string | null
           id?: string | null
+          instagram_url?: string | null
           interests?: string[] | null
           is_expert?: boolean | null
           is_premium?: boolean | null
           is_verified?: boolean | null
-          language?: string | null
-          linkedin_id?: string | null
-          linkedin_verified?: boolean | null
+          linkedin_url?: string | null
           location?: string | null
-          mobile_verified?: boolean | null
-          onboarding_completed?: boolean | null
           posts_count?: number | null
+          privacy_certifications?: boolean | null
+          privacy_education?: boolean | null
+          privacy_experience?: boolean | null
+          privacy_skills?: boolean | null
           profile_completeness_score?: number | null
-          streak_days?: number | null
           tier?: Database["public"]["Enums"]["user_tier"] | null
           trust_level?: Database["public"]["Enums"]["trust_level"] | null
           trust_score?: number | null
+          twitter_url?: string | null
           updated_at?: string | null
-          upvote_rate?: number | null
           username?: string | null
           website?: string | null
         }
@@ -2111,6 +2123,10 @@ export type Database = {
       }
     }
     Functions: {
+      compute_profile_completeness: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["user_role"]

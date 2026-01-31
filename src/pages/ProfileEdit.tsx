@@ -6,12 +6,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useEditProfile } from '@/hooks/useEditProfile';
 import { ProfileCompletionRing } from '@/components/profile/edit/ProfileCompletionRing';
 import { IdentitySection } from '@/components/profile/edit/IdentitySection';
+import { GoalsSection } from '@/components/profile/edit/GoalsSection';
 import { ContactVerificationSection } from '@/components/profile/edit/ContactVerificationSection';
 import { SocialProfilesSection } from '@/components/profile/edit/SocialProfilesSection';
 import { ExperienceSection } from '@/components/profile/edit/ExperienceSection';
 import { EducationSection } from '@/components/profile/edit/EducationSection';
 import { SkillsSection } from '@/components/profile/edit/SkillsSection';
 import { CertificationsSection } from '@/components/profile/edit/CertificationsSection';
+import { PrivacySection } from '@/components/profile/edit/PrivacySection';
 import { StickyBottomBar } from '@/components/profile/edit/StickyBottomBar';
 import { trackEvent } from '@/services/analytics/googleAnalytics';
 
@@ -23,6 +25,7 @@ const ProfileEdit = () => {
     educations,
     certifications,
     skills,
+    goals,
     isLoading,
     isSaving,
     isDirty,
@@ -31,6 +34,7 @@ const ProfileEdit = () => {
     updateEducations,
     updateCertifications,
     updateSkills,
+    updateGoals,
     save,
     user,
     authProfile,
@@ -150,7 +154,7 @@ const ProfileEdit = () => {
             location: profile.location,
             avatar_url: authProfile?.avatar_url,
             interests: authProfile?.interests || [],
-            goals: authProfile?.goals || [],
+            goals: goals || [],
             mobile_verified: authProfile?.mobile_verified,
             linkedin_verified: authProfile?.linkedin_verified,
           }}
@@ -167,6 +171,12 @@ const ProfileEdit = () => {
           profile={profile}
           onUpdate={updateProfile}
           errors={errors}
+        />
+
+        {/* Goals Section - Below Bio in Identity */}
+        <GoalsSection
+          goals={goals}
+          onUpdate={updateGoals}
         />
 
         {/* Contact & Verification */}
@@ -208,6 +218,15 @@ const ProfileEdit = () => {
         <CertificationsSection
           certifications={certifications}
           onUpdate={updateCertifications}
+        />
+
+        {/* Privacy Settings */}
+        <PrivacySection
+          privacyExperience={profile.privacy_experience !== false}
+          privacyEducation={profile.privacy_education !== false}
+          privacyCertifications={profile.privacy_certifications !== false}
+          privacySkills={profile.privacy_skills !== false}
+          onUpdate={updateProfile}
         />
       </div>
 

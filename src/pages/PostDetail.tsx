@@ -187,14 +187,17 @@ const PostDetail: React.FC = () => {
   if (postLoading || answersLoading) {
     return (
       <div className="container max-w-2xl mx-auto py-6 px-4">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-4 gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
+        {/* Back button - left aligned below nav */}
+        <div className="mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+        </div>
         <PostDetailSkeleton />
       </div>
     );
@@ -203,14 +206,17 @@ const PostDetail: React.FC = () => {
   if (postError || !post) {
     return (
       <div className="container max-w-2xl mx-auto py-6 px-4">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-4 gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
+        {/* Back button - left aligned below nav */}
+        <div className="mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+        </div>
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <AlertCircle className="h-12 w-12 text-destructive mb-4" />
           <h3 className="text-lg font-medium mb-2">Post not found</h3>
@@ -223,14 +229,17 @@ const PostDetail: React.FC = () => {
 
   return (
     <div className="container max-w-2xl mx-auto py-6 px-4">
-      <Button
-        variant="ghost"
-        onClick={() => navigate(-1)}
-        className="mb-4 gap-2 text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Button>
+      {/* Back button - left aligned below nav, in line with question widget */}
+      <div className="mb-4">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(-1)}
+          className="gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -250,7 +259,7 @@ const PostDetail: React.FC = () => {
                   {post.author?.full_name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div>
+              <div className="text-left">
                 <div className="flex items-center gap-2">
                   <span 
                     className="font-medium hover:underline cursor-pointer"
@@ -271,10 +280,10 @@ const PostDetail: React.FC = () => {
               </div>
             </div>
             {post.title && (
-              <h1 className="text-2xl font-bold font-heading">{post.title}</h1>
+              <h1 className="text-2xl font-bold font-heading text-left">{post.title}</h1>
             )}
           </CardHeader>
-          <CardContent className="p-6 pt-0">
+          <CardContent className="p-6 pt-0 text-left">
             {post.body && (
               <p className="text-foreground whitespace-pre-wrap leading-relaxed">{post.body}</p>
             )}
@@ -311,7 +320,7 @@ const PostDetail: React.FC = () => {
 
         {/* Answers Section */}
         <div className="space-y-4">
-          <h2 className="text-lg font-medium">
+          <h2 className="text-lg font-medium text-left">
             {answers && answers.length > 0 ? `${answers.length} Answers` : 'Answers'}
           </h2>
 
@@ -366,7 +375,7 @@ const PostDetail: React.FC = () => {
                           {answer.author?.full_name?.charAt(0) || 'U'}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
+                      <div className="text-left">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">{answer.author?.full_name || 'Anonymous'}</span>
                           {answer.author?.is_verified && (
@@ -383,7 +392,7 @@ const PostDetail: React.FC = () => {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent className="p-4 pt-0 text-left">
                   <p className="text-foreground text-sm whitespace-pre-wrap">
                     {answer.body_simple || answer.body_detailed || 'No content'}
                   </p>

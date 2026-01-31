@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { 
   Home, Search, MessageCircle, Bell, 
@@ -14,6 +13,7 @@ import { MobileTopBar } from '@/components/layout/MobileTopBar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
 import { RoleAwareCreateButton } from '@/components/create/RoleAwareCreateButton';
+import { AvatarWithRing } from '@/components/ui/avatar-with-ring';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -124,12 +124,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     className="p-1 rounded-full hover:bg-secondary"
                     onClick={() => navigate('/profile')}
                   >
-                    <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/30 transition-all">
-                      <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                        {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
+                    <AvatarWithRing 
+                      src={profile?.avatar_url || user?.user_metadata?.avatar_url}
+                      fallback={profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
+                      completionPercentage={(profile as any)?.profile_completeness_score || 0}
+                      className="h-8 w-8"
+                    />
                   </Button>
                 ) : (
                   <Button

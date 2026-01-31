@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { 
   Edit, Mail, MessageCircle, Calendar, Briefcase, 
-  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut
+  MapPin, Award, TrendingUp, Target, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut, Bookmark
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,13 +47,12 @@ const Profile = () => {
     }
   };
 
-  // Fetch profile data - use profiles_public view to exclude sensitive fields
+  // Fetch profile data
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ['profile', profileId],
     queryFn: async () => {
       if (!profileId) return null;
 
-      // Use profiles_public view which excludes sensitive fields like email
       let query = supabase.from('profiles_public').select('*');
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
       
@@ -70,7 +69,7 @@ const Profile = () => {
     enabled: !!profileId,
   });
 
-  // Fetch user's posts
+  // Fetch user's posts (questions + opinions)
   const { data: userPosts, isLoading: postsLoading } = useQuery({
     queryKey: ['user-posts', profile?.id],
     queryFn: async () => {
@@ -78,7 +77,7 @@ const Profile = () => {
 
       const { data, error } = await supabase
         .from('posts')
-        .select('id, title, body, like_count, comment_count, created_at')
+        .select('id, title, body, like_count, comment_count, created_at, type')
         .eq('author_id', profile.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
@@ -88,6 +87,67 @@ const Profile = () => {
       return data || [];
     },
     enabled: !!profile?.id,
+  });
+
+  // Fetch user's answers
+  const { data: userAnswers, isLoading: answersLoading } = useQuery({
+    queryKey: ['user-answers', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+
+      const { data, error } = await supabase
+        .from('answers')
+        .select(`
+          id, body_simple, body_detailed, created_at, upvote_count, is_accepted,
+          posts!inner(id, title)
+        `)
+        .eq('author_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.id,
+  });
+
+  // Fetch user's comments
+  const { data: userComments, isLoading: commentsLoading } = useQuery({
+    queryKey: ['user-comments', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+
+      const { data, error } = await supabase
+        .from('comments')
+        .select('id, body, created_at, like_count, entity_id, entity_type')
+        .eq('author_id', profile.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.id,
+  });
+
+  // Fetch user's bookmarks (saved items)
+  const { data: userBookmarks, isLoading: bookmarksLoading } = useQuery({
+    queryKey: ['user-bookmarks', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id || !isOwnProfile) return [];
+
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .select('id, entity_id, entity_type, created_at')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.id && isOwnProfile,
   });
 
   // Fetch expert profile if exists
@@ -165,9 +225,10 @@ const Profile = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  // Safe access to new profile fields
+  // Safe access to profile fields
   const profileCompletenessScore = (profile as any).profile_completeness_score || 0;
   const profileTier = (profile as any).tier || tier;
+  const profileGoals = (profile as any).goals || [];
 
   const getTierColor = (t: string) => {
     switch (t) {
@@ -180,7 +241,7 @@ const Profile = () => {
 
   return (
     <div className="max-w-2xl mx-auto py-4 px-2 sm:px-4 space-y-4">
-      {/* Profile Card */}
+      {/* Profile Summary Widget */}
       <Card className="border border-border/50">
         <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -193,7 +254,7 @@ const Profile = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-lg sm:text-xl font-bold">{profile.full_name || 'Anonymous'}</h1>
+                    <h1 className="text-lg sm:text-xl font-bold text-left">{profile.full_name || 'Anonymous'}</h1>
                     {profile.is_verified && (
                       <TrendingUp className="h-4 w-4 text-primary" />
                     )}
@@ -261,7 +322,29 @@ const Profile = () => {
               </div>
               
               <div className="mt-3 space-y-3">
-                {profile.bio && <p className="text-sm text-muted-foreground">{profile.bio}</p>}
+                {/* Bio - 3 lines max then truncate */}
+                {profile.bio && (
+                  <p className="text-sm text-muted-foreground line-clamp-3 text-left">{profile.bio}</p>
+                )}
+                
+                {/* Goals - 2 lines max then truncate */}
+                {profileGoals.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Target className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <div className="flex flex-wrap gap-1 line-clamp-2">
+                      {profileGoals.slice(0, 4).map((goal: string, index: number) => (
+                        <Badge key={index} variant="secondary" className="text-xs">
+                          {goal}
+                        </Badge>
+                      ))}
+                      {profileGoals.length > 4 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{profileGoals.length - 4} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   {profile.location && (
@@ -315,7 +398,7 @@ const Profile = () => {
         </CardContent>
       </Card>
 
-      {/* Tabs */}
+      {/* Activity Tabs: Posts | Answers | Comments | Saved */}
       <Tabs defaultValue="posts" className="w-full">
         <TabsList className="w-full justify-start border-b border-border/50 rounded-none h-auto p-0 bg-transparent">
           <TabsTrigger 
@@ -324,24 +407,29 @@ const Profile = () => {
           >
             Posts
           </TabsTrigger>
-          {profile.interests && profile.interests.length > 0 && (
+          <TabsTrigger 
+            value="answers" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-2.5 text-xs sm:text-sm"
+          >
+            Answers
+          </TabsTrigger>
+          <TabsTrigger 
+            value="comments" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-2.5 text-xs sm:text-sm"
+          >
+            Comments
+          </TabsTrigger>
+          {isOwnProfile && (
             <TabsTrigger 
-              value="interests" 
+              value="saved" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-2.5 text-xs sm:text-sm"
             >
-              Interests
-            </TabsTrigger>
-          )}
-          {expertProfile && (
-            <TabsTrigger 
-              value="credentials" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-2.5 text-xs sm:text-sm"
-            >
-              Credentials
+              Saved
             </TabsTrigger>
           )}
         </TabsList>
         
+        {/* Posts Tab */}
         <TabsContent value="posts" className="pt-4 space-y-3">
           {postsLoading ? (
             <div className="space-y-3">
@@ -361,7 +449,12 @@ const Profile = () => {
                 className="border border-border/50 cursor-pointer hover:border-primary/30 transition-colors" 
                 onClick={() => navigate(`/post/${post.id}`)}
               >
-                <CardContent className="p-3 sm:p-4">
+                <CardContent className="p-3 sm:p-4 text-left">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="text-[10px] capitalize">
+                      {post.type || 'post'}
+                    </Badge>
+                  </div>
                   <h4 className="font-medium text-sm line-clamp-1">{post.title || 'Untitled'}</h4>
                   {post.body && (
                     <p className="text-muted-foreground text-xs line-clamp-2 mt-1">{post.body}</p>
@@ -397,76 +490,196 @@ const Profile = () => {
           )}
         </TabsContent>
         
-        {profile.interests && profile.interests.length > 0 && (
-          <TabsContent value="interests" className="pt-4">
-            <Card className="border border-border/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center">
-                  <Shield className="mr-2 h-4 w-4 text-primary" />
-                  Interests
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {profile.interests.map((interest, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      <TrendingUp className="mr-1 h-3 w-3 text-primary" />
-                      {interest}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-        
-        {expertProfile && (
-          <TabsContent value="credentials" className="pt-4">
-            <Card className="border border-border/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center">
-                  <Award className="mr-2 h-4 w-4 text-primary" />
-                  Expert Credentials
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {expertProfile.credentials && (
-                  <div>
-                    <h4 className="font-medium text-xs mb-1">Credentials</h4>
-                    <p className="text-muted-foreground text-sm">{expertProfile.credentials}</p>
-                  </div>
-                )}
-                {expertProfile.firm_name && (
-                  <div>
-                    <h4 className="font-medium text-xs mb-1">Firm</h4>
-                    <p className="text-muted-foreground text-sm">{expertProfile.firm_name}</p>
-                  </div>
-                )}
-                {expertProfile.specializations && expertProfile.specializations.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-xs mb-2">Specializations</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {expertProfile.specializations.map((spec, index) => (
-                        <Badge key={index} className="bg-primary/10 text-primary text-xs">
-                          {spec}
-                        </Badge>
-                      ))}
+        {/* Answers Tab */}
+        <TabsContent value="answers" className="pt-4 space-y-3">
+          {answersLoading ? (
+            <div className="space-y-3">
+              {[1, 2].map((i) => (
+                <Card key={i} className="border border-border/50">
+                  <CardContent className="p-3">
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <Skeleton className="h-3 w-3/4" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : userAnswers && userAnswers.length > 0 ? (
+            userAnswers.map((answer: any) => (
+              <Card 
+                key={answer.id} 
+                className="border border-border/50 cursor-pointer hover:border-primary/30 transition-colors"
+                onClick={() => navigate(`/post/${answer.posts?.id}`)}
+              >
+                <CardContent className="p-3 sm:p-4 text-left">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Answered: {answer.posts?.title || 'Unknown post'}
+                  </p>
+                  <p className="text-sm line-clamp-2">
+                    {answer.body_simple || answer.body_detailed || 'No content'}
+                  </p>
+                  <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                    <div className="flex items-center gap-2">
+                      {answer.is_accepted && (
+                        <Badge className="bg-primary/20 text-primary text-[10px]">Accepted</Badge>
+                      )}
+                      <span>{answer.upvote_count || 0} upvotes</span>
                     </div>
+                    <span>{formatDistanceToNow(new Date(answer.created_at), { addSuffix: true })}</span>
                   </div>
-                )}
-                {expertProfile.years_experience && (
-                  <div>
-                    <h4 className="font-medium text-xs mb-1">Experience</h4>
-                    <p className="text-muted-foreground text-sm">{expertProfile.years_experience} years</p>
-                  </div>
-                )}
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card className="border border-border/50">
+              <CardContent className="p-8 text-center">
+                <MessageCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <h3 className="text-sm font-medium mb-1">No answers yet</h3>
+                <p className="text-xs text-muted-foreground">
+                  {isOwnProfile ? "You haven't answered any questions yet." : "No answers from this user."}
+                </p>
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+        
+        {/* Comments Tab */}
+        <TabsContent value="comments" className="pt-4 space-y-3">
+          {commentsLoading ? (
+            <div className="space-y-3">
+              {[1, 2].map((i) => (
+                <Card key={i} className="border border-border/50">
+                  <CardContent className="p-3">
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : userComments && userComments.length > 0 ? (
+            userComments.map((comment) => (
+              <Card 
+                key={comment.id} 
+                className="border border-border/50 cursor-pointer hover:border-primary/30 transition-colors"
+                onClick={() => comment.entity_type === 'post' && navigate(`/post/${comment.entity_id}`)}
+              >
+                <CardContent className="p-3 sm:p-4 text-left">
+                  <p className="text-sm line-clamp-2">{comment.body}</p>
+                  <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                    <span>{comment.like_count || 0} likes</span>
+                    <span>{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card className="border border-border/50">
+              <CardContent className="p-8 text-center">
+                <MessageCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <h3 className="text-sm font-medium mb-1">No comments yet</h3>
+                <p className="text-xs text-muted-foreground">
+                  {isOwnProfile ? "You haven't commented on anything yet." : "No comments from this user."}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        
+        {/* Saved Tab - Only for own profile */}
+        {isOwnProfile && (
+          <TabsContent value="saved" className="pt-4 space-y-3">
+            {bookmarksLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <Card key={i} className="border border-border/50">
+                    <CardContent className="p-3">
+                      <Skeleton className="h-4 w-full mb-2" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : userBookmarks && userBookmarks.length > 0 ? (
+              userBookmarks.map((bookmark) => (
+                <Card 
+                  key={bookmark.id} 
+                  className="border border-border/50 cursor-pointer hover:border-primary/30 transition-colors"
+                  onClick={() => {
+                    if (bookmark.entity_type === 'post') {
+                      navigate(`/post/${bookmark.entity_id}`);
+                    }
+                  }}
+                >
+                  <CardContent className="p-3 sm:p-4 text-left">
+                    <div className="flex items-center gap-2">
+                      <Bookmark className="h-4 w-4 text-primary" />
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        {bookmark.entity_type}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Saved {formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card className="border border-border/50">
+                <CardContent className="p-8 text-center">
+                  <Bookmark className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="text-sm font-medium mb-1">No saved items</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Items you bookmark will appear here.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         )}
       </Tabs>
 
-      {/* Logout button removed - now only accessible via 3-dot menu in profile header */}
+      {/* Expert Credentials - if available */}
+      {expertProfile && (
+        <Card className="border border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center text-left">
+              <Award className="mr-2 h-4 w-4 text-primary" />
+              Expert Credentials
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-left">
+            {expertProfile.credentials && (
+              <div>
+                <h4 className="font-medium text-xs mb-1">Credentials</h4>
+                <p className="text-muted-foreground text-sm">{expertProfile.credentials}</p>
+              </div>
+            )}
+            {expertProfile.firm_name && (
+              <div>
+                <h4 className="font-medium text-xs mb-1">Firm</h4>
+                <p className="text-muted-foreground text-sm">{expertProfile.firm_name}</p>
+              </div>
+            )}
+            {expertProfile.specializations && expertProfile.specializations.length > 0 && (
+              <div>
+                <h4 className="font-medium text-xs mb-2">Specializations</h4>
+                <div className="flex flex-wrap gap-2">
+                  {expertProfile.specializations.map((spec: string, index: number) => (
+                    <Badge key={index} className="bg-primary/10 text-primary text-xs">
+                      {spec}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {expertProfile.years_experience && (
+              <div>
+                <h4 className="font-medium text-xs mb-1">Experience</h4>
+                <p className="text-muted-foreground text-sm">{expertProfile.years_experience} years</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
