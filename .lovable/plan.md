@@ -1,347 +1,359 @@
 
-# Comprehensive Security Review Report
+
+# InvestorPaisa Execution-Level Specification Alignment Plan
 
 ## Executive Summary
 
-This security audit identified **14 security findings** across your InvestorPaisa platform, including **5 CRITICAL/ERROR** level issues that require immediate attention, **6 WARNING** level issues, and **3 INFO** level issues.
+This plan compares the current codebase against the execution-level specification and outlines the changes needed to bring the application into full compliance. The spec defines exact workflows, screen designs, API call patterns, state machines, and failure handling that must be implemented precisely.
 
 ---
 
-## CRITICAL FINDINGS (Immediate Action Required)
+## Current State Analysis
 
-### 1. PUBLIC EXPOSURE OF USER EMAIL ADDRESSES AND PERSONAL DATA
-**Severity:** CRITICAL  
-**Location:** `profiles` table RLS policy
+### What Exists (Partially Aligned)
 
-**Issue:**
-The `profiles` table has a policy "Profiles are viewable by everyone" with `qual: true`, meaning ALL user data is publicly readable including:
-- Email addresses
-- Full names
-- Locations
-- Portfolio values
-- Personal websites
+| Feature | Current State | Spec Requirement |
+|---------|--------------|------------------|
+| Landing Page | Generic hero, stats, testimonials | Simple hero with "Ask anything about money" + Continue/Sign in CTAs |
+| Auth | Email/password + Google OAuth | OTP-based authentication (single email input, OTP verification) |
+| Home Feed | Tabs-based dashboard | Pulse/Learn/Following tabs with skeleton loading |
+| Post Cards | Basic like/comment/share | Double-tap like, swipe gestures, radial menu on long-press |
+| Markets | Quote cards, charts, indicators | Mostly compliant, needs stale label and AI insights |
+| Notifications | Working with filters | Compliant but needs navigation on tap + PATCH call |
+| Messages | Placeholder only | Full conversation list + thread view required |
+| Profile | Working with tabs | Needs saved posts tab and filter switching |
 
-**Risk:** Anyone can query the database to harvest all user email addresses for spam, phishing, or identity theft. Portfolio values expose financial status for targeted attacks.
+### What Is Missing (Requires Implementation)
 
-**Remediation:**
-```sql
--- Drop the overly permissive policy
-DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON public.profiles;
+1. **Pi Copilot / Command Palette** - The floating AI assistant with chat, question rewriting, answer generation
+2. **Post Detail Page** (/post/:id) - Hero section + answers list
+3. **Answer Creation Workflow** - AI-generated answers with Simple/Detailed/Steps tabs
+4. **Create Hub** - Link drop zone with format conversion (thread/carousel/video/tip)
+5. **Live Sessions** - Discovery, joining, websocket chat, AI summarization
+6. **Expert Profiles** - Track button, "Ask Question" shortcut, session booking
+7. **Explore Page Sections** - Trending topics, rising experts, creator spotlights
+8. **Search Functionality** - Real-time search with debounce
+9. **Gesture-based Interactions** - Swipe left (ask similar), swipe right (save), double-tap (like), long-press (radial menu)
 
--- Create a new policy that only exposes non-sensitive fields
-CREATE POLICY "Profiles public fields are viewable" ON public.profiles
-FOR SELECT USING (true);
+---
 
--- Create a view for public profile data (excluding email, portfolio_value)
-CREATE VIEW public.public_profiles AS
-SELECT id, username, full_name, avatar_url, bio, headline, location, 
-       is_verified, is_expert, followers_count, following_count, posts_count
-FROM public.profiles;
+## Implementation Phases
+
+### Phase 1: Landing Page & Authentication Overhaul
+
+**Landing Page Changes:**
+- Replace current complex hero with minimal design
+- Headline: "Ask anything about money."
+- Subtext: "AI + community + experts."
+- Primary CTA: "Continue" (navigates to Home Feed, anonymous)
+- Secondary CTA: "Sign in" (navigates to Auth Page)
+- Add animated soft gradient noise background
+- Add limited Pulse feed preview (first 10 items, read-only)
+- Auth Gate modal on like/save tap when logged out
+
+**Authentication Redesign:**
+- Single page with email input only (no password initially)
+- POST /auth/request-otp on "Continue"
+- OTP input screen with verification
+- POST /auth/verify-otp
+- On success: store tokens, GET /me, redirect to intended screen
+- Inline error on failure
+
+### Phase 2: Home Feed with Full Interaction Model
+
+**Feed Tabs:**
+- Pulse (default) / Learn / Following tabs
+- Show skeleton cards (6) on load
+- GET /feed/{mode}?cursor= on tab switch
+- Infinite scroll at 70% (append with cursor pagination)
+
+**Post Card Interactions:**
+- Double-tap: Like animation, optimistic increment, POST /reactions
+- Swipe right: Bookmark animation, POST /reactions (type: save)
+- Swipe left: Open inline composer below card for "Ask Similar"
+- Long-press: Radial menu (Report, Hide, Copy Link)
+
+**Post Card State Machine:**
+```
+States: Idle | Liked | Saved | Error
+Transitions:
+  Idle -> Liked (on double-tap success)
+  Idle -> Saved (on swipe-right success)
+  Liked/Saved -> Error (on API failure) -> rollback to previous
+```
+
+### Phase 3: Pi Copilot (AI Command Palette)
+
+**Floating CTA (Orb):**
+- Replace current plus button with Pi orb
+- On tap: Open command palette (bottom sheet)
+
+**Command Palette Features:**
+- "Ask PaisaBot" - Opens chat panel
+- POST /ai/chat with streaming response
+- "Save as Post" - Prefills Create Hub
+
+**One-Screen Ask Workflow:**
+- Floating Pi tap opens bottom sheet
+- Focus input with keyboard
+- On type (300ms debounce):
+  - POST /ai/rewrite-question (ghost text)
+  - POST /ai/suggest-tags
+- On "Post" button:
+  - POST /posts
+  - Close sheet, insert at index 0, scroll to top
+
+**Ask Sheet State Machine:**
+```
+States: Closed | Opening | Open | Submitting | Error
+```
+
+### Phase 4: Post Detail & Answer System
+
+**Post Detail Page (/post/:id):**
+- Navigate on PostCard tap
+- Parallel calls: GET /posts/{id}, GET /answers?post_id=
+- Render hero section (skeleton first)
+- Render answers list when loaded
+
+**Answer Creation:**
+- Bottom sheet on "Answer" tap
+- POST /ai/generate-answer {post_id}
+- Returns: { simple, detailed, steps }
+- Tab navigation between formats
+- User edits, presses "Post Answer"
+- POST /answers
+- Close sheet, insert answer at top with glow animation
+- Trigger trust score update
+
+**Answer Sheet State Machine:**
+```
+States: Closed | Generating | Open | Submitting | Error
+```
+
+### Phase 5: Create Hub & Link Conversion
+
+**Create Hub Workflow:**
+- Access from dock/nav
+- Drop zone for links (YouTube, articles, etc.)
+- On link drop: POST /ai/convert-link
+- Returns format options: thread, carousel, video, tip
+- User selects format, preview updates
+- User edits content
+- On "Publish": POST /posts
+- Return to feed
+
+### Phase 6: Explore Page Rebuild
+
+**Parallel API Calls:**
+- GET /topics/trending
+- GET /experts/rising
+- GET /creators/spotlight
+
+**Sections:**
+- Trending Topics (cards with follow button)
+- Rising Experts (profile cards with Track button)
+- Creator Spotlights (featured creators)
+
+**Search:**
+- On type (200ms debounce): GET /search?q=
+- Results appear inline
+
+### Phase 7: Expert Profile System
+
+**Expert Profile Page:**
+- GET /experts/{id}
+- CTAs:
+  - Track: POST /follow (optimistic toggle)
+  - Ask Question: Opens Pi with expert_id context
+  - Book Session: External link
+
+### Phase 8: Live Sessions
+
+**Live Sessions Discovery:**
+- GET /lives (list of scheduled/live sessions)
+
+**Join Flow:**
+- Tap card, video loads
+- Websocket connection opens
+- Chat input with AI rewrite (inline)
+- POST /lives/{id}/messages
+
+**Session End:**
+- System calls POST /ai/summarize-live
+- Creates summary post/replay
+
+### Phase 9: Messages System
+
+**Conversations List:**
+- GET /conversations
+- Display with last message preview
+
+**Thread View:**
+- GET /messages?conversation_id=
+- POST /messages on send
+- Optimistic bubble insertion
+
+### Phase 10: Profile Enhancements
+
+**Profile Page:**
+- GET /users/{id} or GET /users/me
+- Tab switching: Posts | Answers | Saved
+- GET /users/{id}/{posts|answers|saved} per tab
+
+**Edit Profile:**
+- Bottom sheet with Name, Tagline, Bio
+- PUT /users/me on save
+
+---
+
+## Technical Implementation Details
+
+### New Edge Functions Required
+
+1. **auth-otp** - Request and verify OTP
+2. **ai-rewrite** - Rewrite questions
+3. **ai-generate-answer** - Generate answer variants
+4. **ai-convert-link** - Convert links to content formats
+5. **ai-chat** - Chat with PaisaBot
+6. **ai-summarize-live** - Summarize live sessions
+7. **lives** - Live session management
+
+### Database Changes
+
+1. Add `live_session_messages` table
+2. Add `live_session_participants` table
+3. Add `search_history` table
+4. Ensure `answers` table has proper indexes
+
+### Frontend Components to Create
+
+1. `PiCopilot.tsx` - Floating orb + command palette
+2. `AskBottomSheet.tsx` - One-screen ask UI
+3. `AnswerBottomSheet.tsx` - Answer creation with AI tabs
+4. `CreateHub.tsx` - Link drop zone + format selection
+5. `PostDetail.tsx` - Post hero + answers
+6. `LiveSessionCard.tsx` - Session list item
+7. `LiveSessionView.tsx` - Live session with chat
+8. `ExpertProfile.tsx` - Expert-specific profile view
+9. `RadialMenu.tsx` - Long-press context menu
+10. `SwipeablePostCard.tsx` - Post card with gesture support
+
+### State Management Updates
+
+- Add to `uiStore.ts`:
+  - `isAskSheetOpen`
+  - `isAnswerSheetOpen`
+  - `isCreateHubOpen`
+  - `activeLiveSession`
+
+### Routes to Add/Modify
+
+- `/post/:id` - Post detail (NEW)
+- `/live/:id` - Live session view (NEW)
+- `/expert/:id` - Expert profile (NEW)
+- Remove `/dashboard`, `/circles`, `/circle/:circleId`
+
+---
+
+## Empty States (Required for Each Module)
+
+Each module must have:
+- Icon
+- Title
+- Explanation
+- CTA button
+
+No blank screens allowed.
+
+---
+
+## Failure State Handling
+
+For any API call:
+- If timeout: Show inline retry button
+- If 401: Show login modal
+- If 500: Show "Something went wrong" with retry
+
+---
+
+## Analytics Events
+
+Every user action must emit:
+```json
+{
+  "event_name": "...",
+  "user_id": "...",
+  "session_id": "...",
+  "screen": "...",
+  "entity_id": "...",
+  "timestamp": "..."
+}
 ```
 
 ---
 
-### 2. EXPERT CREDENTIALS AND LICENSE IDS PUBLICLY EXPOSED
-**Severity:** CRITICAL  
-**Location:** `expert_profiles` table RLS policy
+## Performance Requirements
 
-**Issue:**
-The policy "Expert profiles are viewable" with `qual: true` exposes:
-- License IDs
-- SEBI registration status
-- Firm names
-- Professional credentials
-
-**Risk:** This data can be used for impersonation of financial advisors, regulatory fraud, or identity theft.
-
-**Remediation:**
-```sql
--- Restrict expert profile visibility
-DROP POLICY IF EXISTS "Expert profiles are viewable" ON public.expert_profiles;
-
-CREATE POLICY "Expert profiles public info viewable" ON public.expert_profiles
-FOR SELECT USING (
-  -- Only show verified experts publicly, hide license_id
-  verification_status = 'verified'
-);
-
--- For full details, require authentication
-CREATE POLICY "Authenticated users can view expert details" ON public.expert_profiles
-FOR SELECT TO authenticated
-USING (true);
-```
+| Endpoint | Target |
+|----------|--------|
+| Feed load | < 800ms |
+| Quote fetch | < 250ms |
+| AI response | < 900ms |
 
 ---
 
-### 3. LEAKED PASSWORD PROTECTION DISABLED
-**Severity:** HIGH  
-**Location:** Supabase Auth Configuration
+## Acceptance Test Script
 
-**Issue:**
-Supabase's leaked password protection is disabled. Users can sign up with passwords that have been exposed in data breaches.
+The build passes only if ALL these steps work:
 
-**Remediation:**
-Enable leaked password protection in Supabase Auth settings:
-1. Navigate to Lovable Cloud > Settings
-2. Enable "Leaked Password Protection"
+1. Open app (landing page loads)
+2. Tap "Continue" (navigate to home feed anonymous)
+3. Scroll feed (infinite scroll works)
+4. Double-tap post (like animation, count increments)
+5. Ask question (via Pi, post creates)
+6. Answer question (AI generates, answer posts)
+7. Save post (swipe right, bookmark animation)
+8. Follow expert (optimistic toggle)
+9. View stock (chart loads with real data)
+10. Join live session (video + chat works)
+11. Receive notification (tap navigates correctly)
 
----
-
-### 4. EVENTS TABLE INSERT POLICY ALLOWS USER_ID SPOOFING
-**Severity:** HIGH  
-**Location:** `events` table RLS policy
-
-**Issue:**
-The INSERT policy only checks `auth.uid() IS NOT NULL`, not that `user_id = auth.uid()`. This allows authenticated users to insert events for OTHER users, polluting analytics and potentially framing users.
-
-**Current Policy:**
-```sql
--- VULNERABLE
-WITH CHECK (auth.uid() IS NOT NULL)
-```
-
-**Remediation:**
-```sql
-DROP POLICY IF EXISTS "Authenticated users can insert events" ON public.events;
-
-CREATE POLICY "Users can only insert own events" ON public.events
-FOR INSERT TO authenticated
-WITH CHECK (auth.uid() = user_id);
-```
+If any step breaks, the implementation is incomplete.
 
 ---
 
-### 5. AUTH PROVIDERS TABLE POTENTIAL EXPOSURE
-**Severity:** HIGH  
-**Location:** `auth_providers` table
+## Implementation Priority
 
-**Issue:**
-Contains email addresses and phone numbers linked to OAuth providers. While RLS exists, the data structure is sensitive.
-
-**Remediation:**
-Verify the policy implementation and consider encrypting sensitive fields:
-```sql
--- Verify policy is correctly implemented
-SELECT * FROM pg_policies WHERE tablename = 'auth_providers';
-
--- Consider adding additional security
-ALTER TABLE public.auth_providers ENABLE ROW LEVEL SECURITY;
-```
+1. **Critical Path**: Landing, Auth, Feed, PostCard interactions
+2. **Core AI**: Pi Copilot, Ask workflow, Answer generation
+3. **Content Creation**: Create Hub, Link conversion
+4. **Discovery**: Explore page, Search, Expert profiles
+5. **Engagement**: Live sessions, Messages
+6. **Polish**: Gestures, animations, empty states, error handling
 
 ---
 
-## WARNING LEVEL FINDINGS
+## Files to Delete (Not in Spec)
 
-### 6. REGISTRATION AUTO-LOGIN BYPASSES EMAIL VERIFICATION
-**Severity:** MEDIUM  
-**Location:** `src/services/auth/registerService.ts` (lines 33-34)
-
-**Issue:**
-```typescript
-// Auto-login the user after registration (without waiting for email confirmation)
-await login(email, password);
-```
-
-The code attempts to auto-login users immediately after registration, bypassing email verification.
-
-**Remediation:**
-Remove auto-login and require email verification:
-```typescript
-// Remove this line
-// await login(email, password);
-
-showToast(
-  "Registration successful",
-  "Please check your email to verify your account before logging in"
-);
-```
+- `src/pages/Dashboard.tsx` - Not in spec
+- `src/pages/Circles.tsx` - Replaced by Explore/Network
+- `src/pages/Circle.tsx` - Not in spec
+- `src/components/circles/*` - Not in spec
+- Professional-related components if not needed
 
 ---
 
-### 7. PRIVATE MESSAGES LACK SOFT-DELETE PURGING
-**Severity:** MEDIUM  
-**Location:** `messages` table
+## Summary
 
-**Issue:**
-Messages have a `deleted_at` field but remain in the database indefinitely. Deleted private messages are still accessible to database administrators or in case of policy bypass.
+This plan transforms InvestorPaisa from its current state (a traditional social platform) into the spec-defined AI-powered financial Q&A community with:
 
-**Remediation:**
-Implement a scheduled function to permanently delete messages older than 30 days after soft-delete.
+- OTP-based authentication
+- Gesture-based post interactions
+- AI-powered question rewriting and answer generation
+- Live sessions with real-time chat
+- Link-to-content conversion
+- Expert tracking and discovery
 
----
-
-### 8. DEVICE SESSIONS STORE SENSITIVE DATA
-**Severity:** MEDIUM  
-**Location:** `device_sessions` table
-
-**Issue:**
-Stores IP addresses, user agents, and `refresh_token_hash`. While protected by RLS, this creates privacy and security concerns.
-
-**Remediation:**
-- Hash IP addresses for analytics
-- Implement session expiration cleanup
-- Consider not storing full user agents
-
----
-
-### 9. REFERRAL CODES MAY BE GUESSABLE
-**Severity:** MEDIUM  
-**Location:** `referrals` table, `handle_new_user()` function
-
-**Issue:**
-Referral codes are generated from MD5 hash of user ID:
-```sql
-UPPER(SUBSTRING(MD5(NEW.id::text) FROM 1 FOR 8))
-```
-
-This is deterministic and potentially guessable.
-
-**Remediation:**
-Use cryptographically random codes:
-```sql
-UPPER(ENCODE(GEN_RANDOM_BYTES(6), 'hex'))
-```
-
----
-
-### 10. SEARCH HISTORY REVEALS SENSITIVE INTERESTS
-**Severity:** LOW  
-**Location:** `search_history` table
-
-**Issue:**
-Stores complete search queries which can reveal sensitive financial interests or personal situations.
-
-**Remediation:**
-- Implement automatic expiration (e.g., 90 days)
-- Allow users to clear search history
-- Consider anonymizing for analytics
-
----
-
-### 11. AI REQUEST LOGGING REVEALS BEHAVIOR
-**Severity:** LOW  
-**Location:** `ai_requests` table
-
-**Issue:**
-Tracks AI usage patterns that could reveal what users are researching.
-
-**Remediation:**
-Aggregate data for analytics rather than storing individual requests long-term.
-
----
-
-## INFO LEVEL FINDINGS
-
-### 12. MODERATION QUEUE ADMIN-ONLY ACCESS
-**Severity:** INFO  
-**Status:** Properly secured
-
-The `moderation_queue` table correctly uses the `has_role()` function to restrict access to admins only. This is the correct implementation.
-
----
-
-### 13. USER ROLES TABLE PROPERLY IMPLEMENTED
-**Severity:** INFO  
-**Status:** Properly secured
-
-The `user_roles` table exists separately from profiles (best practice) and uses proper RLS with the `has_role()` security definer function.
-
----
-
-### 14. NOTIFICATION PAYLOADS
-**Severity:** INFO  
-**Location:** `notifications` table
-
-The JSONB `payload` field could inadvertently contain sensitive data. Implement data minimization practices.
-
----
-
-## CODE-LEVEL SECURITY OBSERVATIONS
-
-### POSITIVE FINDINGS (No Action Required)
-
-1. **No localStorage/sessionStorage for auth** - Auth tokens are managed by Supabase correctly
-2. **No hardcoded admin checks** - Uses proper `has_role()` function
-3. **No dangerous eval/Function calls** - Code is safe from injection
-4. **Proper URL encoding** - `encodeURIComponent` used in search
-5. **No dangerouslySetInnerHTML with user content** - Only used for chart theming
-6. **Protected routes implemented** - `ProtectedRoute` component properly checks auth state
-7. **Edge functions validate requests** - CORS headers and error handling present
-
----
-
-## REMEDIATION PRIORITY
-
-| Priority | Finding | Effort |
-|----------|---------|--------|
-| P0 | Profiles table public exposure | 30 min |
-| P0 | Expert profiles exposure | 30 min |
-| P1 | Leaked password protection | 5 min |
-| P1 | Events table INSERT policy | 15 min |
-| P1 | Auth providers verification | 15 min |
-| P2 | Registration auto-login bypass | 10 min |
-| P2 | Referral code randomization | 15 min |
-| P3 | Message purging | 1 hour |
-| P3 | Search history expiration | 1 hour |
-
----
-
-## IMPLEMENTATION PLAN
-
-### Phase 1: Critical RLS Fixes (Day 1)
-1. Fix `profiles` table policy to hide email and sensitive data
-2. Fix `expert_profiles` policy to protect license IDs
-3. Fix `events` table INSERT policy
-4. Enable leaked password protection
-
-### Phase 2: Code Fixes (Day 2)
-1. Remove auto-login after registration
-2. Update referral code generation
-3. Add input validation with Zod schemas
-
-### Phase 3: Data Hygiene (Week 1)
-1. Implement message purging function
-2. Add search history expiration
-3. Create audit logging for admin actions
-
----
-
-## SQL MIGRATION SCRIPT (Ready to Execute)
-
-```sql
--- CRITICAL FIX 1: Profiles table - restrict sensitive data exposure
-DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON public.profiles;
-
--- Allow viewing basic profile info
-CREATE POLICY "Public profile fields viewable" ON public.profiles
-FOR SELECT USING (true);
--- NOTE: Create a view or modify frontend to not select email/portfolio_value for public queries
-
--- CRITICAL FIX 2: Events table - prevent user_id spoofing
-DROP POLICY IF EXISTS "Authenticated users can insert events" ON public.events;
-
-CREATE POLICY "Users can only insert own events" ON public.events
-FOR INSERT TO authenticated
-WITH CHECK (auth.uid() = user_id);
-
--- CRITICAL FIX 3: Expert profiles - protect license data for non-authenticated
-DROP POLICY IF EXISTS "Expert profiles are viewable" ON public.expert_profiles;
-
-CREATE POLICY "Verified expert profiles publicly viewable" ON public.expert_profiles
-FOR SELECT USING (verification_status = 'verified');
-
-CREATE POLICY "Authenticated can view all expert profiles" ON public.expert_profiles
-FOR SELECT TO authenticated
-USING (true);
-```
-
----
-
-## Next Steps
-
-After approval, I will:
-1. Execute the SQL migration to fix RLS policies
-2. Update the registration service to require email verification
-3. Implement Zod validation schemas for all user inputs
-4. Create a security-focused code review checklist
+All implementations must follow the exact API call patterns, state machines, and UI behaviors defined in the specification.
 
