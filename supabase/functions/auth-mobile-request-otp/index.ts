@@ -20,16 +20,16 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
-    // Try OTP-specific credentials first, fall back to Twilio
-    const otpAccountSid = Deno.env.get('OTP_ACCOUNT_SID') || Deno.env.get('TWILIO_ACCOUNT_SID')
-    const otpAuthToken = Deno.env.get('OTP_AUTH_TOKEN') || Deno.env.get('TWILIO_AUTH_TOKEN')
+    // RCA FIX: OTP_ACCOUNT_SID was an API Key (SK...), not Account SID (AC...)
+    // Twilio requires the main Account SID that owns the phone number
+    // ALWAYS use TWILIO_ACCOUNT_SID (which starts with AC) as the main account
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
 
     console.log('[OTP Request] Starting OTP request...')
-    console.log('[OTP Request] OTP_ACCOUNT_SID configured:', !!Deno.env.get('OTP_ACCOUNT_SID'))
-    console.log('[OTP Request] OTP_AUTH_TOKEN configured:', !!Deno.env.get('OTP_AUTH_TOKEN'))
-    console.log('[OTP Request] TWILIO_ACCOUNT_SID configured:', !!Deno.env.get('TWILIO_ACCOUNT_SID'))
-    console.log('[OTP Request] TWILIO_AUTH_TOKEN configured:', !!Deno.env.get('TWILIO_AUTH_TOKEN'))
-    console.log('[OTP Request] Using Account SID:', otpAccountSid ? otpAccountSid.substring(0, 6) + '...' : 'NONE')
+    console.log('[OTP Request] TWILIO_ACCOUNT_SID configured:', !!twilioAccountSid)
+    console.log('[OTP Request] TWILIO_AUTH_TOKEN configured:', !!twilioAuthToken)
+    console.log('[OTP Request] Account SID prefix:', twilioAccountSid ? twilioAccountSid.substring(0, 6) + '...' : 'NONE')
 
     // Get user from auth header
     const authHeader = req.headers.get('Authorization')
@@ -124,20 +124,20 @@ serve(async (req) => {
     let smsSent = false
     let smsError: string | null = null
 
-    if (otpAccountSid && otpAuthToken) {
+    if (twilioAccountSid && twilioAuthToken) {
       try {
         // Format phone number for Twilio (ensure it starts with +)
         const formattedPhone = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`
         
         console.log('[OTP Request] Sending SMS to:', formattedPhone)
-        console.log('[OTP Request] Using Account SID:', otpAccountSid.substring(0, 10) + '...')
+        console.log('[OTP Request] Using Account SID:', twilioAccountSid.substring(0, 10) + '...')
         
-        // Create Basic Auth header for Twilio
-        const twilioAuth = btoa(`${otpAccountSid}:${otpAuthToken}`)
+        // RCA FIX: Use the Account SID that owns the phone number for both auth and API URL
+        const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`)
         
         const smsBody = new URLSearchParams({
           To: formattedPhone,
-          From: '+12184534076', // Twilio phone number
+          From: '+12184534076', // Twilio phone number owned by TWILIO_ACCOUNT_SID
           Body: `Your InvestorPaisa verification code is ${otp}. Valid for 10 minutes. Do not share this code.`,
         })
 
@@ -147,8 +147,9 @@ serve(async (req) => {
           Body: `OTP: ${otp.substring(0, 3)}***`
         })
 
+        // RCA FIX: Use twilioAccountSid in the URL path (must match the account that owns the From number)
         const twilioResponse = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${otpAccountSid}/Messages.json`,
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
           {
             method: 'POST',
             headers: {

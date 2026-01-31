@@ -466,22 +466,7 @@ const Profile = () => {
         )}
       </Tabs>
 
-      {/* Logout Button - Only visible on own profile */}
-      {isOwnProfile && (
-        <Card className="border border-border/50">
-          <CardContent className="p-4">
-            <Button
-              variant="destructive"
-              onClick={handleLogout}
-              className="w-full h-10"
-              size="sm"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Log out
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Logout button removed - now only accessible via 3-dot menu in profile header */}
     </div>
   );
 };
