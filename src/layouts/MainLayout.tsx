@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { 
   Home, Search, Users, MessageCircle, Bell, 
-  TrendingUp, LogOut, PlusCircle
+  TrendingUp, LogOut, PlusCircle, BarChart3
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,6 +36,7 @@ const MainLayout = () => {
   const navigation = [
     { name: 'Home', href: '/home', icon: Home },
     { name: 'Feed', href: '/feed', icon: TrendingUp },
+    { name: 'Markets', href: '/markets', icon: BarChart3 },
     { name: 'Circles', href: '/circles', icon: Users },
     { name: 'Messages', href: '/inbox', icon: MessageCircle },
     { name: 'Notifications', href: '/notifications', icon: Bell },
