@@ -317,6 +317,7 @@ export type Database = {
           id: string
           is_group: boolean | null
           name: string | null
+          type: string | null
           updated_at: string
         }
         Insert: {
@@ -324,6 +325,7 @@ export type Database = {
           id?: string
           is_group?: boolean | null
           name?: string | null
+          type?: string | null
           updated_at?: string
         }
         Update: {
@@ -331,6 +333,7 @@ export type Database = {
           id?: string
           is_group?: boolean | null
           name?: string | null
+          type?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1118,14 +1121,20 @@ export type Database = {
           is_premium: boolean | null
           is_verified: boolean | null
           language: string | null
+          linkedin_verified: boolean | null
           location: string | null
+          mobile_verified: boolean | null
           onboarding_completed: boolean | null
           portfolio_change: number | null
           portfolio_value: number | null
           posts_count: number | null
+          profile_completeness_score: number | null
+          streak_days: number | null
+          tier: Database["public"]["Enums"]["user_tier"] | null
           trust_level: Database["public"]["Enums"]["trust_level"] | null
           trust_score: number | null
           updated_at: string
+          upvote_rate: number | null
           username: string | null
           website: string | null
         }
@@ -1146,14 +1155,20 @@ export type Database = {
           is_premium?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          linkedin_verified?: boolean | null
           location?: string | null
+          mobile_verified?: boolean | null
           onboarding_completed?: boolean | null
           portfolio_change?: number | null
           portfolio_value?: number | null
           posts_count?: number | null
+          profile_completeness_score?: number | null
+          streak_days?: number | null
+          tier?: Database["public"]["Enums"]["user_tier"] | null
           trust_level?: Database["public"]["Enums"]["trust_level"] | null
           trust_score?: number | null
           updated_at?: string
+          upvote_rate?: number | null
           username?: string | null
           website?: string | null
         }
@@ -1174,14 +1189,20 @@ export type Database = {
           is_premium?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          linkedin_verified?: boolean | null
           location?: string | null
+          mobile_verified?: boolean | null
           onboarding_completed?: boolean | null
           portfolio_change?: number | null
           portfolio_value?: number | null
           posts_count?: number | null
+          profile_completeness_score?: number | null
+          streak_days?: number | null
+          tier?: Database["public"]["Enums"]["user_tier"] | null
           trust_level?: Database["public"]["Enums"]["trust_level"] | null
           trust_score?: number | null
           updated_at?: string
+          upvote_rate?: number | null
           username?: string | null
           website?: string | null
         }
@@ -1512,6 +1533,9 @@ export type Database = {
         | "system"
         | "live_session"
         | "badge"
+        | "message"
+        | "community_post"
+        | "tier_change"
       post_type:
         | "question"
         | "tip"
@@ -1532,6 +1556,12 @@ export type Database = {
         | "badge_earned"
       trust_level: "newbie" | "member" | "trusted" | "expert" | "legend"
       user_role: "learner" | "creator" | "expert" | "admin"
+      user_tier:
+        | "guest"
+        | "unverified_user"
+        | "verified_user"
+        | "influencer"
+        | "expert"
       verification_status: "unverified" | "pending" | "verified" | "rejected"
     }
     CompositeTypes: {
@@ -1671,6 +1701,9 @@ export const Constants = {
         "system",
         "live_session",
         "badge",
+        "message",
+        "community_post",
+        "tier_change",
       ],
       post_type: [
         "question",
@@ -1694,6 +1727,13 @@ export const Constants = {
       ],
       trust_level: ["newbie", "member", "trusted", "expert", "legend"],
       user_role: ["learner", "creator", "expert", "admin"],
+      user_tier: [
+        "guest",
+        "unverified_user",
+        "verified_user",
+        "influencer",
+        "expert",
+      ],
       verification_status: ["unverified", "pending", "verified", "rejected"],
     },
   },
