@@ -47,13 +47,14 @@ const Profile = () => {
     }
   };
 
-  // Fetch profile data
+  // Fetch profile data - use profiles_public view to exclude sensitive fields
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ['profile', profileId],
     queryFn: async () => {
       if (!profileId) return null;
 
-      let query = supabase.from('profiles').select('*');
+      // Use profiles_public view which excludes sensitive fields like email
+      let query = supabase.from('profiles_public').select('*');
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
       
       if (isUUID) {
