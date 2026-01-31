@@ -347,9 +347,10 @@ const Feed: React.FC = () => {
       }
     }
 
-    // For 'learn' tab, filter by educational content types
-    if (activeFeedTab === 'learn') {
-      query = query.in('type', ['tip', 'thread', 'insight']);
+    // For 'trending' tab, order by engagement score from last 48 hours
+    if (activeFeedTab === 'trending') {
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      query = query.gte('created_at', twoDaysAgo).order('like_count', { ascending: false });
     }
 
     const { data: postsData, error } = await query;
@@ -427,7 +428,7 @@ const Feed: React.FC = () => {
     <div className="container max-w-2xl mx-auto py-6 px-4">
       <Tabs 
         value={activeFeedTab} 
-        onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'learn' | 'following')} 
+        onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'trending' | 'following')} 
         className="w-full"
       >
         <TabsList className="grid grid-cols-3 h-12 mb-6 bg-secondary/50 border border-border/50 rounded-xl p-1">
@@ -438,10 +439,10 @@ const Feed: React.FC = () => {
             Pulse
           </TabsTrigger>
           <TabsTrigger 
-            value="learn" 
+            value="trending" 
             className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
           >
-            Learn
+            Trending
           </TabsTrigger>
           <TabsTrigger 
             value="following" 
@@ -478,7 +479,7 @@ const Feed: React.FC = () => {
                 }
                 action={
                   activeFeedTab === 'following'
-                    ? { label: 'Discover People', onClick: () => navigate('/discover') }
+                    ? { label: 'Find People', onClick: () => navigate('/feed') }
                     : undefined
                 }
               />

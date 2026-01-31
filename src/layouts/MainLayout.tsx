@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import { 
   Home, Search, MessageCircle, Bell, 
-  TrendingUp, LogOut, BarChart3, Compass, Video, Plus
+  Compass, Plus, User
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { PiCopilot } from '@/components/pi/PiCopilot';
 import { CreateHub } from '@/components/create/CreateHub';
 import { useUIStore } from '@/stores/uiStore';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobileTopBar } from '@/components/layout/MobileTopBar';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { SearchTypeahead } from '@/components/search/SearchTypeahead';
+import logoIcon from '@/assets/logo-icon.png';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -22,29 +25,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { setCreateHubOpen } = useUIStore();
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast.success("Logged out successfully");
-      navigate('/');
-    } catch (error) {
-      console.error('Error logging out:', error);
-      toast.error("Error logging out");
-    }
-  };
+  const isMobile = useIsMobile();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const navigation = [
     { name: 'Feed', href: '/feed', icon: Home },
-    { name: 'Discover', href: '/discover', icon: Compass },
-    { name: 'Markets', href: '/markets', icon: BarChart3 },
-    { name: 'Live', href: '/live', icon: Video },
+    { name: 'Markets', href: '/markets', icon: Compass },
     { name: 'Messages', href: '/messages', icon: MessageCircle },
     { name: 'Notifications', href: '/notifications', icon: Bell },
   ];
 
   const isActive = (href: string) => location.pathname === href || location.pathname.startsWith(href + '/');
 
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-background pb-20">
+        <MobileTopBar />
+        <main className="flex-1">
+          {children || <Outlet />}
+        </main>
+        <MobileBottomNav />
+        <CreateHub />
+      </div>
+    );
+  }
+
+  // Desktop layout
   return (
     <div className="min-h-screen bg-background">
       {/* Top Navigation */}
@@ -58,25 +66,42 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 className="flex items-center space-x-2 cursor-pointer"
                 onClick={() => navigate('/feed')}
               >
-                <div className="h-9 w-9 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center glow-primary">
-                  <TrendingUp className="h-5 w-5 text-primary-foreground" />
-                </div>
+                <img 
+                  src={logoIcon} 
+                  alt="InvestorPaisa" 
+                  className="h-9 w-9 rounded-xl"
+                />
                 <span className="text-xl font-bold font-heading hidden sm:block">
                   Investor<span className="text-primary">Paisa</span>
                 </span>
               </div>
             </div>
 
-            {/* Search */}
-            <div className="flex-1 max-w-xl mx-4 hidden md:block">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/discover')}
-                className="w-full justify-start text-muted-foreground bg-secondary/50 border border-border/50 hover:bg-secondary hover:border-primary/30 rounded-xl h-10"
-              >
-                <Search className="h-4 w-4 mr-3" />
-                <span className="text-sm">Search...</span>
-              </Button>
+            {/* Search with Typeahead */}
+            <div className="flex-1 max-w-xl mx-4 hidden md:block relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search posts, people, topics..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSearchResults(e.target.value.length > 0);
+                  }}
+                  onFocus={() => searchQuery.length > 0 && setShowSearchResults(true)}
+                  className="pl-10 bg-secondary/50 border border-border/50 hover:bg-secondary hover:border-primary/30 rounded-xl h-10"
+                />
+              </div>
+              {showSearchResults && (
+                <SearchTypeahead 
+                  query={searchQuery} 
+                  onClose={() => setShowSearchResults(false)}
+                  onResultClick={() => {
+                    setShowSearchResults(false);
+                    setSearchQuery('');
+                  }}
+                />
+              )}
             </div>
 
             {/* Navigation Links */}
@@ -100,30 +125,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {/* Profile / Auth */}
               <div className="ml-2 flex items-center space-x-2">
                 {user ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="p-1 rounded-full hover:bg-secondary"
-                      onClick={() => navigate('/profile')}
-                    >
-                      <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/30 transition-all">
-                        <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
-                        <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                          {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                    </Button>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleLogout}
-                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8 p-0"
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </Button>
-                  </>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-1 rounded-full hover:bg-secondary"
+                    onClick={() => navigate('/profile')}
+                  >
+                    <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/30 transition-all">
+                      <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
+                      <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                        {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
                 ) : (
                   <Button
                     onClick={() => navigate('/auth')}
@@ -142,12 +156,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <main className="flex-1">
         {children || <Outlet />}
       </main>
-
-      {/* Pi Copilot - Floating AI Assistant */}
-      <PiCopilot />
       
       {/* Create Hub Modal */}
       <CreateHub />
+
+      {/* Floating Create Button - Desktop only */}
+      <Button
+        onClick={() => setCreateHubOpen(true)}
+        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg glow-primary"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 };

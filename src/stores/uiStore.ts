@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type FeedTab = 'pulse' | 'learn' | 'following';
+type FeedTab = 'pulse' | 'trending' | 'following';
 type AskSheetState = 'closed' | 'opening' | 'open' | 'submitting' | 'error';
 type AnswerSheetState = 'closed' | 'generating' | 'open' | 'submitting' | 'error';
 
@@ -29,9 +29,6 @@ interface UIState {
   // Create Hub
   isCreateHubOpen: boolean;
   
-  // Live Session
-  activeLiveSession: string | null;
-  
   // Auth Gate
   isAuthGateOpen: boolean;
   authGateIntendedAction: string | null;
@@ -58,9 +55,6 @@ interface UIState {
   // Create Hub Actions
   setCreateHubOpen: (open: boolean) => void;
   
-  // Live Session Actions
-  setActiveLiveSession: (sessionId: string | null) => void;
-  
   // Auth Gate Actions
   openAuthGate: (intendedAction?: string) => void;
   closeAuthGate: () => void;
@@ -86,9 +80,6 @@ export const useUIStore = create<UIState>((set) => ({
   
   // Create Hub
   isCreateHubOpen: false,
-  
-  // Live Session
-  activeLiveSession: null,
   
   // Auth Gate
   isAuthGateOpen: false,
@@ -123,9 +114,6 @@ export const useUIStore = create<UIState>((set) => ({
   
   // Create Hub Actions
   setCreateHubOpen: (isCreateHubOpen) => set({ isCreateHubOpen }),
-  
-  // Live Session Actions
-  setActiveLiveSession: (activeLiveSession) => set({ activeLiveSession }),
   
   // Auth Gate Actions
   openAuthGate: (intendedAction) => set({ 
