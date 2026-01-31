@@ -889,6 +889,36 @@ export type Database = {
           },
         ]
       }
+      mobile_otp_requests: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          otp_code: string
+          phone_number: string
+          user_id: string
+          verified: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          otp_code: string
+          phone_number: string
+          user_id: string
+          verified?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          phone_number?: string
+          user_id?: string
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
       moderation_queue: {
         Row: {
           ai_decision: Database["public"]["Enums"]["moderation_status"] | null
@@ -1296,6 +1326,39 @@ export type Database = {
         }
         Relationships: []
       }
+      promotions: {
+        Row: {
+          created_at: string | null
+          ends_at: string | null
+          entity_id: string
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          starts_at: string | null
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          ends_at?: string | null
+          entity_id: string
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          starts_at?: string | null
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          ends_at?: string | null
+          entity_id?: string
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          starts_at?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       reactions: {
         Row: {
           created_at: string
@@ -1421,6 +1484,47 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      services: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          price: number | null
+          provider_id: string
+          title: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          price?: number | null
+          provider_id: string
+          title: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          price?: number | null
+          provider_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       session_participants: {
         Row: {

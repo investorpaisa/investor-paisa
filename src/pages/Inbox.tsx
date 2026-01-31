@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { MessageCircle, RefreshCw, AlertCircle, Radio } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useConversations, Conversation } from '@/hooks/useConversations';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { MassBroadcastModal } from '@/components/inbox/MassBroadcastModal';
 
 // Loading skeleton
 const ConversationSkeleton: React.FC = () => (
@@ -118,6 +121,24 @@ const Inbox: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: conversations, isLoading, error, refetch } = useConversations();
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+
+  // Check if user is an expert
+  const { data: profile } = useQuery({
+    queryKey: ['user-profile-tier', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('tier, is_expert')
+        .eq('id', user.id)
+        .single();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const isExpert = profile?.tier === 'expert' || profile?.is_expert === true;
 
   // Redirect to auth if not logged in
   React.useEffect(() => {
@@ -139,7 +160,26 @@ const Inbox: React.FC = () => {
             </div>
             <h1 className="text-lg sm:text-xl font-bold">Messages</h1>
           </div>
+          
+          {/* Expert Broadcast Button */}
+          {isExpert && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => setShowBroadcastModal(true)}
+            >
+              <Radio className="h-4 w-4" />
+              Broadcast
+            </Button>
+          )}
         </div>
+        
+        {/* Mass Broadcast Modal */}
+        <MassBroadcastModal 
+          isOpen={showBroadcastModal}
+          onClose={() => setShowBroadcastModal(false)}
+        />
 
         {/* Content */}
         <div className="space-y-3">
