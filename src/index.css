@@ -119,6 +119,13 @@
     text-wrap: balance;
   }
   
+  /* Force left alignment for all card content */
+  .card-content-left {
+    text-align: left;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  
   /* Glassmorphism */
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50;

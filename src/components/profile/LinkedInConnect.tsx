@@ -129,9 +129,9 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
   if (isConnected) {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
+        <Badge variant="secondary" className="bg-success/10 text-success border-success/30">
           <Check className="h-3 w-3 mr-1" />
-          LinkedIn Verified
+          Connected
         </Badge>
       </div>
     );
@@ -142,12 +142,12 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
       variant="outline"
       onClick={handleConnect}
       disabled={isLoading}
-      className="gap-2 rounded-2xl border-blue-200 hover:bg-blue-50"
+      className="gap-2 rounded-2xl border-blue-500/30 hover:bg-blue-500/10"
     >
       {isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Linkedin className="h-4 w-4 text-blue-600" />
+        <Linkedin className="h-4 w-4 text-blue-500" />
       )}
       Connect LinkedIn
     </Button>

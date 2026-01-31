@@ -39,6 +39,13 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       return;
     }
 
+    // Validate phone number format
+    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    if (!/^\+?[1-9]\d{9,14}$/.test(cleanedPhone)) {
+      toast.error('Please include country code (e.g., +91XXXXXXXXXX)');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -46,6 +53,8 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         toast.error('Please log in first');
         return;
       }
+
+      console.log('[OTP UI] Requesting OTP for:', cleanedPhone);
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
@@ -55,24 +64,32 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ phoneNumber }),
+          body: JSON.stringify({ phoneNumber: cleanedPhone }),
         }
       );
 
       const data = await response.json();
+      console.log('[OTP UI] Response:', data);
 
       if (data.success) {
-        toast.success('OTP sent to your phone');
+        if (data.smsSent) {
+          toast.success('OTP sent to your phone!');
+        } else {
+          toast.success('OTP generated');
+        }
         setStep('otp');
         // For development, show OTP in toast if returned
-        if (data.otp) {
-          toast.info(`Dev OTP: ${data.otp}`, { duration: 10000 });
+        if (data.dev_otp) {
+          toast.info(`Dev OTP: ${data.dev_otp}`, { duration: 30000 });
+        }
+        if (data.smsError) {
+          toast.warning(`SMS Note: ${data.smsError}`);
         }
       } else {
         toast.error(data.error || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('OTP request error:', error);
+      console.error('[OTP UI] Request error:', error);
       toast.error('Failed to request OTP');
     } finally {
       setIsLoading(false);
@@ -93,6 +110,10 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         return;
       }
 
+      // Clean phone number to match what was sent
+      const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+      console.log('[OTP UI] Verifying OTP for:', cleanedPhone);
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-verify-otp`,
         {
@@ -101,11 +122,12 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ otp, phoneNumber }),
+          body: JSON.stringify({ otp, phoneNumber: cleanedPhone }),
         }
       );
 
       const data = await response.json();
+      console.log('[OTP UI] Verify response:', data);
 
       if (data.success) {
         toast.success('Mobile number verified!');
@@ -119,7 +141,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         toast.error(data.error || 'Invalid OTP');
       }
     } catch (error) {
-      console.error('OTP verify error:', error);
+      console.error('[OTP UI] Verify error:', error);
       toast.error('Failed to verify OTP');
     } finally {
       setIsLoading(false);

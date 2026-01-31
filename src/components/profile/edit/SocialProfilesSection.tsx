@@ -49,7 +49,7 @@ export const SocialProfilesSection: React.FC<SocialProfilesSectionProps> = ({
           Social Profiles
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 text-left">
         {/* LinkedIn */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -64,23 +64,14 @@ export const SocialProfilesSection: React.FC<SocialProfilesSectionProps> = ({
               </Badge>
             )}
           </div>
-          <div className="flex gap-2">
-            <Input
-              value={profile.linkedin_url || ''}
-              onChange={(e) => onUpdate({ linkedin_url: e.target.value })}
-              placeholder="https://linkedin.com/in/yourprofile"
-              className={`flex-1 bg-secondary/50 border-border/50 ${errors.linkedin_url ? 'border-destructive' : ''}`}
-            />
-            {!linkedinVerified && profile.linkedin_url && (
-              <LinkedInConnect isConnected={linkedinVerified} onConnect={onLinkedInConnected} />
-            )}
-          </div>
-          {errors.linkedin_url && (
-            <p className="text-xs text-destructive">{errors.linkedin_url}</p>
+          {/* Show Connect LinkedIn button when not connected */}
+          {!linkedinVerified ? (
+            <LinkedInConnect isConnected={linkedinVerified} onConnect={onLinkedInConnected} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              ✔ Your LinkedIn account is connected and verified
+            </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Connect LinkedIn to increase your trust score
-          </p>
         </div>
 
         {/* Twitter/X */}
