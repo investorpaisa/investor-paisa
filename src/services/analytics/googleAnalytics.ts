@@ -39,3 +39,17 @@ export const trackUserEvent = {
   viewMarket: (symbol: string) => trackEvent('view_market', 'market', symbol),
   searchQuery: (query: string) => trackEvent('search', 'search', query),
 };
+
+// New analytics events for comprehensive tracking
+export const trackEvents = {
+  landingView: () => trackEvent('landing_view', 'page'),
+  authOpen: () => trackEvent('auth_open', 'auth'),
+  signupSuccess: (method: string) => trackEvent('signup_success', 'auth', method),
+  loginSuccess: (method: string) => trackEvent('login_success', 'auth', method),
+  upvote: (postId: string) => trackEvent('upvote', 'engagement', postId),
+  downvote: (postId: string) => trackEvent('downvote', 'engagement', postId),
+  comment: (postId: string) => trackEvent('comment', 'engagement', postId),
+  repost: (postId: string) => trackEvent('repost', 'engagement', postId),
+  share: (type: string, id: string) => trackEvent('share', 'engagement', `${type}:${id}`),
+  messageSend: () => trackEvent('message_send', 'messaging'),
+};
