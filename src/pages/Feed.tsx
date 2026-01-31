@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,7 +20,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useUIStore } from '@/stores/uiStore';
 
 interface Post {
@@ -49,31 +49,32 @@ interface PostWithAuthor extends Post {
 }
 
 const PAGE_SIZE = 10;
+const TABS = ['pulse', 'trending', 'following'] as const;
 
-// Skeleton loading component - 6 cards as per spec
+// Skeleton loading component
 const FeedSkeleton: React.FC = () => (
-  <div className="space-y-4">
+  <div className="space-y-3">
     {[1, 2, 3, 4, 5, 6].map((i) => (
       <Card key={i} className="border border-border/50 bg-card/50">
-        <CardHeader className="p-4 pb-2">
+        <CardHeader className="p-3 pb-2">
           <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-2.5 w-20" />
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4 pt-2">
-          <Skeleton className="h-5 w-3/4 mb-2" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-2/3 mt-1" />
+        <CardContent className="p-3 pt-1">
+          <Skeleton className="h-4 w-3/4 mb-1.5" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-2/3 mt-1" />
         </CardContent>
-        <CardFooter className="p-4 pt-0">
-          <div className="flex gap-4">
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
+        <CardFooter className="p-3 pt-0">
+          <div className="flex gap-3">
+            <Skeleton className="h-7 w-14" />
+            <Skeleton className="h-7 w-14" />
+            <Skeleton className="h-7 w-14" />
           </div>
         </CardFooter>
       </Card>
@@ -106,7 +107,6 @@ const FeedPostCard: React.FC<{
       return;
     }
     
-    // Optimistic update with animation
     setIsLikeAnimating(true);
     setLocalLikeCount(prev => isLiked ? prev - 1 : prev + 1);
     
@@ -116,7 +116,6 @@ const FeedPostCard: React.FC<{
       reactionType: 'like',
     }, {
       onError: () => {
-        // Rollback on error
         setLocalLikeCount(post.like_count || 0);
         toast.error('Failed to like post');
       }
@@ -155,36 +154,35 @@ const FeedPostCard: React.FC<{
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      whileHover={{ y: -2 }}
+      exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2 }}
     >
       <Card 
-        className="border border-border/50 bg-card/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 cursor-pointer"
+        className="border border-border/50 bg-card/50 hover:border-primary/30 transition-all cursor-pointer"
         onDoubleClick={handleDoubleTapLike}
         onClick={() => onPostClick(post.id)}
       >
-        <CardHeader className="p-4 pb-2">
+        <CardHeader className="p-3 pb-2">
           <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <Avatar 
-                className="cursor-pointer transition-transform hover:scale-105"
+                className="h-9 w-9 cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   onProfileClick(post.author?.username || null);
                 }}
               >
                 <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'User'} />
-                <AvatarFallback className="bg-secondary">
+                <AvatarFallback className="bg-secondary text-xs">
                   {post.author?.full_name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <div className="flex items-center gap-1">
                   <h4 
-                    className="font-medium text-sm hover:underline cursor-pointer"
+                    className="font-medium text-xs sm:text-sm hover:underline cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       onProfileClick(post.author?.username || null);
@@ -196,21 +194,21 @@ const FeedPostCard: React.FC<{
                     <TrendingUp className="h-3 w-3 text-primary" />
                   )}
                 </div>
-                <div className="flex items-center text-xs text-muted-foreground">
+                <div className="flex items-center text-[10px] sm:text-xs text-muted-foreground">
                   <span>@{post.author?.username || 'user'}</span>
-                  <span className="mx-2">•</span>
+                  <span className="mx-1.5">•</span>
                   <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs capitalize bg-secondary/50">
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px] capitalize bg-secondary/50 h-5 px-1.5">
                 {post.type}
               </Badge>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -222,16 +220,16 @@ const FeedPostCard: React.FC<{
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4 pt-2">
-          {post.title && <h3 className="text-base font-medium mb-1 line-clamp-2">{post.title}</h3>}
-          {post.body && <p className="text-muted-foreground text-sm whitespace-pre-wrap line-clamp-3">{post.body}</p>}
+        <CardContent className="p-3 pt-1">
+          {post.title && <h3 className="text-sm font-medium mb-1 line-clamp-2">{post.title}</h3>}
+          {post.body && <p className="text-muted-foreground text-xs whitespace-pre-wrap line-clamp-3">{post.body}</p>}
         </CardContent>
-        <CardFooter className="p-4 pt-0 flex justify-between">
-          <div className="flex items-center gap-2">
+        <CardFooter className="p-3 pt-0 flex justify-between">
+          <div className="flex items-center gap-1">
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`gap-1 transition-all ${isLiked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`gap-1 h-7 px-2 text-xs ${isLiked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={handleLike}
               disabled={toggleReaction.isPending}
             >
@@ -239,39 +237,39 @@ const FeedPostCard: React.FC<{
                 animate={isLikeAnimating ? { scale: [1, 1.3, 1] } : {}}
                 transition={{ duration: 0.3 }}
               >
-                <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
+                <Heart className="h-3.5 w-3.5" fill={isLiked ? "currentColor" : "none"} />
               </motion.div>
               <span>{localLikeCount}</span>
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="gap-1 text-muted-foreground hover:text-foreground"
+              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
                 onPostClick(post.id);
               }}
             >
-              <MessageSquare className="h-4 w-4" />
+              <MessageSquare className="h-3.5 w-3.5" />
               <span>{post.comment_count || 0}</span>
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="gap-1 text-muted-foreground hover:text-foreground"
+              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={handleShare}
             >
-              <Share2 className="h-4 w-4" />
+              <Share2 className="h-3.5 w-3.5" />
             </Button>
           </div>
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`transition-all ${isBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`h-7 px-2 ${isBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={handleSave}
             disabled={toggleBookmark.isPending}
           >
-            <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
+            <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
           </Button>
         </CardFooter>
       </Card>
@@ -286,14 +284,14 @@ const EmptyState: React.FC<{
   description: string;
   action?: { label: string; onClick: () => void };
 }> = ({ icon, title, description, action }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-center">
+  <div className="flex flex-col items-center justify-center py-12 text-center">
     <div className="mb-4 text-muted-foreground">
       {icon}
     </div>
-    <h3 className="text-lg font-medium mb-2">{title}</h3>
-    <p className="text-muted-foreground text-sm max-w-sm mb-4">{description}</p>
+    <h3 className="text-base font-medium mb-2">{title}</h3>
+    <p className="text-muted-foreground text-xs max-w-xs mb-4">{description}</p>
     {action && (
-      <Button onClick={action.onClick} className="bg-primary text-primary-foreground">
+      <Button onClick={action.onClick} size="sm" className="bg-primary text-primary-foreground">
         {action.label}
       </Button>
     )}
@@ -302,12 +300,12 @@ const EmptyState: React.FC<{
 
 // Error state component
 const ErrorState: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-center">
-    <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-    <h3 className="text-lg font-medium mb-2">Something went wrong</h3>
-    <p className="text-muted-foreground text-sm mb-4">Failed to load feed. Please try again.</p>
-    <Button variant="outline" onClick={onRetry} className="gap-2">
-      <RefreshCw className="h-4 w-4" />
+  <div className="flex flex-col items-center justify-center py-12 text-center">
+    <AlertCircle className="h-10 w-10 text-destructive mb-4" />
+    <h3 className="text-base font-medium mb-2">Something went wrong</h3>
+    <p className="text-muted-foreground text-xs mb-4">Failed to load feed. Please try again.</p>
+    <Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
+      <RefreshCw className="h-3.5 w-3.5" />
       Retry
     </Button>
   </div>
@@ -320,6 +318,19 @@ const Feed: React.FC = () => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
+  // Get current tab index for swipe
+  const currentTabIndex = TABS.indexOf(activeFeedTab);
+
+  // Handle swipe gesture
+  const handleDragEnd = (_: any, info: PanInfo) => {
+    const threshold = 50;
+    if (info.offset.x < -threshold && currentTabIndex < TABS.length - 1) {
+      setActiveFeedTab(TABS[currentTabIndex + 1]);
+    } else if (info.offset.x > threshold && currentTabIndex > 0) {
+      setActiveFeedTab(TABS[currentTabIndex - 1]);
+    }
+  };
+
   // Fetch posts with infinite scroll
   const fetchPosts = async ({ pageParam = 0 }: { pageParam?: number }) => {
     const start = pageParam * PAGE_SIZE;
@@ -331,14 +342,12 @@ const Feed: React.FC = () => {
       .is('deleted_at', null)
       .range(start, start + PAGE_SIZE - 1);
 
-    // For 'pulse' tab, show open questions (trending questions)
     if (activeFeedTab === 'pulse') {
       query = query.eq('type', 'question').order('created_at', { ascending: false });
     } else {
       query = query.order('created_at', { ascending: false });
     }
 
-    // For 'following' tab, filter by followed users
     if (activeFeedTab === 'following' && user?.id) {
       const { data: follows } = await supabase
         .from('follows')
@@ -353,7 +362,6 @@ const Feed: React.FC = () => {
       }
     }
 
-    // For 'trending' tab, order by engagement score from last 48 hours
     if (activeFeedTab === 'trending') {
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       query = query.gte('created_at', twoDaysAgo).order('like_count', { ascending: false });
@@ -363,7 +371,6 @@ const Feed: React.FC = () => {
     if (error) throw error;
     if (!postsData || postsData.length === 0) return { posts: [], nextPage: undefined };
 
-    // Fetch author profiles
     const authorIds = [...new Set(postsData.map(p => p.author_id))];
     const { data: profilesData } = await supabase
       .from('profiles')
@@ -431,90 +438,102 @@ const Feed: React.FC = () => {
   const allPosts = data?.pages.flatMap(page => page.posts) || [];
 
   return (
-    <div className="container max-w-2xl mx-auto py-4 px-2 sm:px-4">
+    <div className="max-w-2xl mx-auto py-3 px-2 sm:px-4">
       <Tabs 
         value={activeFeedTab} 
         onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'trending' | 'following')} 
         className="w-full"
       >
-        <TabsList className="grid grid-cols-3 w-full h-11 mb-4 bg-secondary/50 border border-border/50 rounded-xl p-1">
-          <TabsTrigger
-            value="pulse" 
-            className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
-          >
-            Pulse
-          </TabsTrigger>
-          <TabsTrigger 
-            value="trending" 
-            className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
-          >
-            Trending
-          </TabsTrigger>
-          <TabsTrigger 
-            value="following" 
-            className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
-          >
-            Following
-          </TabsTrigger>
-        </TabsList>
+        {/* Sticky Tab Navigation */}
+        <div className="sticky top-12 z-30 bg-background/95 backdrop-blur-sm pt-1 pb-3 -mx-2 px-2 sm:-mx-4 sm:px-4">
+          <TabsList className="grid grid-cols-3 w-full h-10 bg-secondary/50 border border-border/50 rounded-xl p-1">
+            <TabsTrigger
+              value="pulse" 
+              className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+            >
+              Pulse
+            </TabsTrigger>
+            <TabsTrigger 
+              value="trending" 
+              className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+            >
+              Trending
+            </TabsTrigger>
+            <TabsTrigger 
+              value="following" 
+              className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+            >
+              Following
+            </TabsTrigger>
+          </TabsList>
+        </div>
         
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeFeedTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            {isLoading && <FeedSkeleton />}
-            
-            {error && <ErrorState onRetry={() => refetch()} />}
-            
-            {!isLoading && !error && allPosts.length === 0 && (
-              <EmptyState
-                icon={<AlertCircle className="h-12 w-12" />}
-                title={
-                  activeFeedTab === 'following' 
-                    ? "No posts from people you follow"
-                    : "No posts yet"
-                }
-                description={
-                  activeFeedTab === 'following'
-                    ? "Follow more users and experts to see their posts here"
-                    : "Be the first to share your financial knowledge!"
-                }
-                action={
-                  activeFeedTab === 'following'
-                    ? { label: 'Find People', onClick: () => navigate('/feed') }
-                    : undefined
-                }
-              />
-            )}
-            
-            {!isLoading && !error && allPosts.length > 0 && (
-              <div className="space-y-4">
-                {allPosts.map(post => (
-                  <FeedPostCard 
-                    key={post.id} 
-                    post={post} 
-                    onProfileClick={handleProfileClick}
-                    onPostClick={handlePostClick}
-                  />
-                ))}
-                
-                {/* Infinite scroll trigger */}
-                <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
-                  {isFetchingNextPage && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Loading more...</span>
-                    </div>
-                  )}
+        {/* Swipeable Content */}
+        <motion.div
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.1}
+          onDragEnd={handleDragEnd}
+          className="touch-pan-y"
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeFeedTab}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              {isLoading && <FeedSkeleton />}
+              
+              {error && <ErrorState onRetry={() => refetch()} />}
+              
+              {!isLoading && !error && allPosts.length === 0 && (
+                <EmptyState
+                  icon={<AlertCircle className="h-10 w-10" />}
+                  title={
+                    activeFeedTab === 'following' 
+                      ? "No posts from people you follow"
+                      : "No posts yet"
+                  }
+                  description={
+                    activeFeedTab === 'following'
+                      ? "Follow more users and experts to see their posts here"
+                      : "Be the first to share your financial knowledge!"
+                  }
+                  action={
+                    activeFeedTab === 'following'
+                      ? { label: 'Find People', onClick: () => navigate('/feed') }
+                      : undefined
+                  }
+                />
+              )}
+              
+              {!isLoading && !error && allPosts.length > 0 && (
+                <div className="space-y-3">
+                  {allPosts.map(post => (
+                    <FeedPostCard 
+                      key={post.id} 
+                      post={post} 
+                      onProfileClick={handleProfileClick}
+                      onPostClick={handlePostClick}
+                    />
+                  ))}
+                  
+                  {/* Infinite scroll trigger */}
+                  <div ref={loadMoreRef} className="h-16 flex items-center justify-center">
+                    {isFetchingNextPage && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span className="text-xs">Loading more...</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </motion.div>
       </Tabs>
     </div>
   );
