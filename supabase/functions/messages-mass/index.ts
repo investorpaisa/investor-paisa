@@ -43,24 +43,27 @@ serve(async (req) => {
       })
     }
 
-    // Check if user is an expert
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('tier, is_expert')
-      .eq('id', user.id)
-      .single()
+    // Check if user has expert role using the secure user_roles table
+    // This table cannot be modified by users, only admins
+    const { data: roles, error: rolesError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
 
-    if (profileError || !profile) {
-      return new Response(JSON.stringify({ error: 'Profile not found' }), {
-        status: 404,
+    if (rolesError) {
+      console.error('Failed to fetch user roles:', rolesError)
+      return new Response(JSON.stringify({ error: 'Failed to verify permissions' }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Only experts can send mass messages
-    if (profile.tier !== 'expert' && !profile.is_expert) {
+    // Only users with 'expert' role can send mass messages
+    const isExpert = roles?.some(r => r.role === 'expert')
+
+    if (!isExpert) {
       return new Response(JSON.stringify({ 
-        error: 'Only experts can send mass messages' 
+        error: 'Only verified experts can send mass messages' 
       }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
