@@ -23,3 +23,12 @@ verify_jwt = false
 
 [functions.lives]
 verify_jwt = false
+
+[functions.search]
+verify_jwt = false
+
+[functions.fetch-newsapi-articles]
+verify_jwt = false
+
+[functions.news-trending]
+verify_jwt = false
