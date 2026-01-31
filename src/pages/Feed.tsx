@@ -1,16 +1,15 @@
-
-import React from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Heart, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Heart, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +20,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useUIStore } from '@/stores/uiStore';
 
 interface Post {
   id: string;
@@ -47,33 +48,93 @@ interface PostWithAuthor extends Post {
   author?: Profile | null;
 }
 
-// Individual post card with reaction hooks
-const FeedPostCard: React.FC<{ post: PostWithAuthor; onProfileClick: (username: string | null) => void }> = ({ post, onProfileClick }) => {
+const PAGE_SIZE = 10;
+
+// Skeleton loading component - 6 cards as per spec
+const FeedSkeleton: React.FC = () => (
+  <div className="space-y-4">
+    {[1, 2, 3, 4, 5, 6].map((i) => (
+      <Card key={i} className="border border-border/50 bg-card/50">
+        <CardHeader className="p-4 pb-2">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 pt-2">
+          <Skeleton className="h-5 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3 mt-1" />
+        </CardContent>
+        <CardFooter className="p-4 pt-0">
+          <div className="flex gap-4">
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-8 w-16" />
+          </div>
+        </CardFooter>
+      </Card>
+    ))}
+  </div>
+);
+
+// Individual post card with interactions
+const FeedPostCard: React.FC<{ 
+  post: PostWithAuthor; 
+  onProfileClick: (username: string | null) => void;
+  onPostClick: (postId: string) => void;
+}> = ({ post, onProfileClick, onPostClick }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const toggleReaction = useToggleReaction();
   const toggleBookmark = useToggleBookmark();
+  const [localLikeCount, setLocalLikeCount] = useState(post.like_count || 0);
+  const [isLikeAnimating, setIsLikeAnimating] = useState(false);
   
   const { data: userReactions } = useUserReaction(post.id, 'post');
   const { data: isBookmarked } = useIsBookmarked(post.id);
   
   const isLiked = userReactions?.some(r => r.reaction_type === 'like') || false;
 
-  const handleLike = () => {
+  const handleLike = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!user) {
-      navigate('/auth/login');
+      navigate('/auth');
       return;
     }
+    
+    // Optimistic update with animation
+    setIsLikeAnimating(true);
+    setLocalLikeCount(prev => isLiked ? prev - 1 : prev + 1);
+    
     toggleReaction.mutate({
       entityId: post.id,
       entityType: 'post',
       reactionType: 'like',
+    }, {
+      onError: () => {
+        // Rollback on error
+        setLocalLikeCount(post.like_count || 0);
+        toast.error('Failed to like post');
+      }
     });
+    
+    setTimeout(() => setIsLikeAnimating(false), 300);
   };
 
-  const handleSave = () => {
+  const handleDoubleTapLike = () => {
+    if (!isLiked) {
+      handleLike({ stopPropagation: () => {} } as React.MouseEvent);
+    }
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!user) {
-      navigate('/auth/login');
+      navigate('/auth');
       return;
     }
     toggleBookmark.mutate({
@@ -82,7 +143,8 @@ const FeedPostCard: React.FC<{ post: PostWithAuthor; onProfileClick: (username: 
     });
   };
 
-  const handleShare = async () => {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
       toast.success('Link copied to clipboard');
@@ -92,330 +154,360 @@ const FeedPostCard: React.FC<{ post: PostWithAuthor; onProfileClick: (username: 
   };
 
   return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow">
-      <CardHeader className="p-4 pb-2">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-3">
-            <Avatar 
-              className="cursor-pointer transition-transform hover:scale-105"
-              onClick={() => onProfileClick(post.author?.username || null)}
-            >
-              <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'User'} />
-              <AvatarFallback>
-                {post.author?.full_name?.charAt(0) || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="flex items-center gap-1">
-                <h4 
-                  className="font-medium hover:underline cursor-pointer"
-                  onClick={() => onProfileClick(post.author?.username || null)}
-                >
-                  {post.author?.full_name || 'Anonymous'}
-                </h4>
-                {post.author?.is_verified && (
-                  <span className="text-primary">
-                    <TrendingUp className="h-3 w-3" />
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center text-xs text-muted-foreground">
-                <span className="mr-2">@{post.author?.username || 'user'}</span>
-                <span className="mr-2">•</span>
-                <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Card 
+        className="border border-border/50 bg-card/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 cursor-pointer"
+        onDoubleClick={handleDoubleTapLike}
+        onClick={() => onPostClick(post.id)}
+      >
+        <CardHeader className="p-4 pb-2">
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+              <Avatar 
+                className="cursor-pointer transition-transform hover:scale-105"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onProfileClick(post.author?.username || null);
+                }}
+              >
+                <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'User'} />
+                <AvatarFallback className="bg-secondary">
+                  {post.author?.full_name?.charAt(0) || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="flex items-center gap-1">
+                  <h4 
+                    className="font-medium text-sm hover:underline cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onProfileClick(post.author?.username || null);
+                    }}
+                  >
+                    {post.author?.full_name || 'Anonymous'}
+                  </h4>
+                  {post.author?.is_verified && (
+                    <TrendingUp className="h-3 w-3 text-primary" />
+                  )}
+                </div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <span>@{post.author?.username || 'user'}</span>
+                  <span className="mx-2">•</span>
+                  <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+                </div>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs capitalize bg-secondary/50">
+                {post.type}
+              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>Report content</DropdownMenuItem>
+                  <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => handleShare(e as any)}>Copy link</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
-          <div className="flex items-center">
-            <Badge variant="outline" className="mr-2 capitalize">
-              {post.type}
-            </Badge>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Report content</DropdownMenuItem>
-                <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleShare}>Copy link</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+        </CardHeader>
+        <CardContent className="p-4 pt-2">
+          {post.title && <h3 className="text-base font-medium mb-1 line-clamp-2">{post.title}</h3>}
+          {post.body && <p className="text-muted-foreground text-sm whitespace-pre-wrap line-clamp-3">{post.body}</p>}
+        </CardContent>
+        <CardFooter className="p-4 pt-0 flex justify-between">
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`gap-1 transition-all ${isLiked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={handleLike}
+              disabled={toggleReaction.isPending}
+            >
+              <motion.div
+                animate={isLikeAnimating ? { scale: [1, 1.3, 1] } : {}}
+                transition={{ duration: 0.3 }}
+              >
+                <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
+              </motion.div>
+              <span>{localLikeCount}</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-1 text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPostClick(post.id);
+              }}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span>{post.comment_count || 0}</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-1 text-muted-foreground hover:text-foreground"
+              onClick={handleShare}
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-2 cursor-pointer" onClick={() => navigate(`/post/${post.id}`)}>
-        {post.title && <h3 className="text-lg font-medium mb-2">{post.title}</h3>}
-        {post.body && <p className="text-muted-foreground text-sm whitespace-pre-wrap line-clamp-4">{post.body}</p>}
-      </CardContent>
-      <CardFooter className="p-4 pt-0 flex justify-between">
-        <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`gap-1 ${isLiked ? 'text-primary' : ''}`}
-            onClick={handleLike}
-            disabled={toggleReaction.isPending}
+            className={`transition-all ${isBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={handleSave}
+            disabled={toggleBookmark.isPending}
           >
-            <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
-            <span>{post.like_count || 0}</span>
+            <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate(`/post/${post.id}`)}>
-            <MessageSquare className="h-4 w-4" />
-            <span>{post.comment_count || 0}</span>
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-1" onClick={handleShare}>
-            <Share2 className="h-4 w-4" />
-            <span>{post.share_count || 0}</span>
-          </Button>
-        </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className={isBookmarked ? 'text-primary' : ''}
-          onClick={handleSave}
-          disabled={toggleBookmark.isPending}
-        >
-          <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
-        </Button>
-      </CardFooter>
-    </Card>
+        </CardFooter>
+      </Card>
+    </motion.div>
   );
 };
+
+// Empty state component
+const EmptyState: React.FC<{ 
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action?: { label: string; onClick: () => void };
+}> = ({ icon, title, description, action }) => (
+  <div className="flex flex-col items-center justify-center py-16 text-center">
+    <div className="mb-4 text-muted-foreground">
+      {icon}
+    </div>
+    <h3 className="text-lg font-medium mb-2">{title}</h3>
+    <p className="text-muted-foreground text-sm max-w-sm mb-4">{description}</p>
+    {action && (
+      <Button onClick={action.onClick} className="bg-primary text-primary-foreground">
+        {action.label}
+      </Button>
+    )}
+  </div>
+);
+
+// Error state component
+const ErrorState: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
+  <div className="flex flex-col items-center justify-center py-16 text-center">
+    <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+    <h3 className="text-lg font-medium mb-2">Something went wrong</h3>
+    <p className="text-muted-foreground text-sm mb-4">Failed to load feed. Please try again.</p>
+    <Button variant="outline" onClick={onRetry} className="gap-2">
+      <RefreshCw className="h-4 w-4" />
+      Retry
+    </Button>
+  </div>
+);
 
 const Feed: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeFeedTab, setActiveFeedTab } = useUIStore();
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: posts, isLoading, error } = useQuery({
-    queryKey: ['feed-posts'],
-    queryFn: async () => {
-      // Fetch posts
-      const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id')
-        .eq('moderation_status', 'approved')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(20);
+  // Fetch posts with infinite scroll
+  const fetchPosts = async ({ pageParam = 0 }: { pageParam?: number }) => {
+    const start = pageParam * PAGE_SIZE;
+    
+    let query = supabase
+      .from('posts')
+      .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id')
+      .eq('moderation_status', 'approved')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .range(start, start + PAGE_SIZE - 1);
 
-      if (postsError) throw postsError;
-      if (!postsData || postsData.length === 0) return [];
-
-      // Get unique author IDs
-      const authorIds = [...new Set(postsData.map(p => p.author_id))];
-
-      // Fetch profiles for authors
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, username, avatar_url, headline, is_verified')
-        .in('id', authorIds);
-
-      if (profilesError) throw profilesError;
-
-      // Create a map of profiles by ID
-      const profilesMap = new Map<string, Profile>();
-      profilesData?.forEach(profile => {
-        profilesMap.set(profile.id, profile);
-      });
-
-      // Combine posts with author profiles
-      const postsWithAuthors: PostWithAuthor[] = postsData.map(post => ({
-        ...post,
-        author: profilesMap.get(post.author_id) || null,
-      }));
-
-      return postsWithAuthors;
-    },
-  });
-
-  // Fetch following feed
-  const { data: followingPosts, isLoading: followingLoading, error: followingError } = useQuery({
-    queryKey: ['following-feed', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-
-      // Get users I'm following
-      const { data: follows, error: followsError } = await supabase
+    // For 'following' tab, filter by followed users
+    if (activeFeedTab === 'following' && user?.id) {
+      const { data: follows } = await supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', user.id);
 
-      if (followsError) throw followsError;
-      if (!follows || follows.length === 0) return [];
-
-      const followingIds = follows.map(f => f.following_id);
-
-      // Get posts from followed users
-      const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id')
-        .in('author_id', followingIds)
-        .eq('moderation_status', 'approved')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (postsError) throw postsError;
-      if (!postsData || postsData.length === 0) return [];
-
-      // Fetch profiles
-      const authorIds = [...new Set(postsData.map(p => p.author_id))];
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, full_name, username, avatar_url, headline, is_verified')
-        .in('id', authorIds);
-
-      const profilesMap = new Map<string, Profile>();
-      profilesData?.forEach(profile => {
-        profilesMap.set(profile.id, profile);
-      });
-
-      return postsData.map(post => ({
-        ...post,
-        author: profilesMap.get(post.author_id) || null,
-      }));
-    },
-    enabled: !!user?.id,
-  });
-
-  const handleProfile = (username: string | null) => {
-    if (username) {
-      navigate(`/profile/${username}`);
+      if (follows && follows.length > 0) {
+        const followingIds = follows.map(f => f.following_id);
+        query = query.in('author_id', followingIds);
+      } else {
+        return { posts: [], nextPage: undefined };
+      }
     }
+
+    // For 'learn' tab, filter by educational content types
+    if (activeFeedTab === 'learn') {
+      query = query.in('type', ['tip', 'thread', 'insight']);
+    }
+
+    const { data: postsData, error } = await query;
+    if (error) throw error;
+    if (!postsData || postsData.length === 0) return { posts: [], nextPage: undefined };
+
+    // Fetch author profiles
+    const authorIds = [...new Set(postsData.map(p => p.author_id))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url, headline, is_verified')
+      .in('id', authorIds);
+
+    const profilesMap = new Map<string, Profile>();
+    profilesData?.forEach(profile => profilesMap.set(profile.id, profile));
+
+    const posts: PostWithAuthor[] = postsData.map(post => ({
+      ...post,
+      author: profilesMap.get(post.author_id) || null,
+    }));
+
+    return {
+      posts,
+      nextPage: posts.length === PAGE_SIZE ? pageParam + 1 : undefined,
+    };
   };
 
-  const renderLoadingSkeleton = () => (
-    <div className="space-y-6">
-      {[1, 2, 3].map((i) => (
-        <Card key={i}>
-          <CardHeader className="p-4 pb-2">
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <Skeleton className="h-5 w-3/4 mb-2" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3 mt-1" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['feed', activeFeedTab, user?.id],
+    queryFn: fetchPosts,
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+    initialPageParam: 0,
+    staleTime: 30000,
+  });
 
-  const renderEmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-10">
-      <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium mb-2">No posts yet</h3>
-      <p className="text-muted-foreground text-center mb-4">
-        Be the first to share your financial knowledge!
-      </p>
-      <Button onClick={() => navigate('/app')}>Create a Post</Button>
-    </div>
-  );
+  // Infinite scroll observer
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
 
-  const renderErrorState = () => (
-    <div className="flex flex-col items-center justify-center py-10">
-      <AlertCircle className="h-10 w-10 text-destructive mb-4" />
-      <h3 className="text-lg font-medium mb-2">Failed to load feed</h3>
-      <p className="text-muted-foreground text-center mb-4">
-        Something went wrong. Please try again.
-      </p>
-      <Button variant="outline" onClick={() => window.location.reload()}>
-        Retry
-      </Button>
-    </div>
-  );
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.7 }
+    );
 
-  const renderFollowingEmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-10">
-      <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
-      <h3 className="text-lg font-medium mb-2">No posts from people you follow</h3>
-      <p className="text-muted-foreground text-center mb-4">
-        Follow more users and experts to see their posts here
-      </p>
-      <Button onClick={() => navigate('/discover')}>Discover People to Follow</Button>
-    </div>
-  );
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => observerRef.current?.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const handleProfileClick = (username: string | null) => {
+    if (username) navigate(`/profile/${username}`);
+  };
+
+  const handlePostClick = (postId: string) => {
+    navigate(`/post/${postId}`);
+  };
+
+  const allPosts = data?.pages.flatMap(page => page.posts) || [];
 
   return (
-    <div className="container max-w-3xl mx-auto py-6">
-      <h1 className="text-2xl font-bold mb-6">Feed</h1>
-      
-      <Tabs defaultValue="for-you" className="w-full">
-        <TabsList className="grid grid-cols-4 h-auto mb-6">
-          <TabsTrigger value="for-you" className="py-2">For You</TabsTrigger>
-          <TabsTrigger value="following" className="py-2">Following</TabsTrigger>
-          <TabsTrigger value="trending" className="py-2">Trending</TabsTrigger>
-          <TabsTrigger value="latest" className="py-2">Latest</TabsTrigger>
+    <div className="container max-w-2xl mx-auto py-6 px-4">
+      <Tabs 
+        value={activeFeedTab} 
+        onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'learn' | 'following')} 
+        className="w-full"
+      >
+        <TabsList className="grid grid-cols-3 h-12 mb-6 bg-secondary/50 border border-border/50 rounded-xl p-1">
+          <TabsTrigger 
+            value="pulse" 
+            className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+          >
+            Pulse
+          </TabsTrigger>
+          <TabsTrigger 
+            value="learn" 
+            className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+          >
+            Learn
+          </TabsTrigger>
+          <TabsTrigger 
+            value="following" 
+            className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+          >
+            Following
+          </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="for-you" className="mt-0">
-          {isLoading && renderLoadingSkeleton()}
-          {error && renderErrorState()}
-          {!isLoading && !error && posts && posts.length === 0 && renderEmptyState()}
-          {!isLoading && !error && posts && posts.length > 0 && (
-            <div className="space-y-6">
-              {posts.map(post => (
-                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="following" className="mt-0">
-          {!user ? (
-            <div className="flex flex-col items-center justify-center py-10">
-              <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Sign in to see posts from people you follow</h3>
-              <Button onClick={() => navigate('/auth/login')}>Sign In</Button>
-            </div>
-          ) : followingLoading ? (
-            renderLoadingSkeleton()
-          ) : followingError ? (
-            renderErrorState()
-          ) : !followingPosts || followingPosts.length === 0 ? (
-            renderFollowingEmptyState()
-          ) : (
-            <div className="space-y-6">
-              {followingPosts.map(post => (
-                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="trending" className="mt-0">
-          {isLoading && renderLoadingSkeleton()}
-          {error && renderErrorState()}
-          {!isLoading && !error && posts && posts.length === 0 && renderEmptyState()}
-          {!isLoading && !error && posts && posts.length > 0 && (
-            <div className="space-y-6">
-              {[...posts].sort((a, b) => (b.like_count || 0) - (a.like_count || 0)).map(post => (
-                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="latest" className="mt-0">
-          {isLoading && renderLoadingSkeleton()}
-          {error && renderErrorState()}
-          {!isLoading && !error && posts && posts.length === 0 && renderEmptyState()}
-          {!isLoading && !error && posts && posts.length > 0 && (
-            <div className="space-y-6">
-              {posts.map(post => (
-                <FeedPostCard key={post.id} post={post} onProfileClick={handleProfile} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeFeedTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {isLoading && <FeedSkeleton />}
+            
+            {error && <ErrorState onRetry={() => refetch()} />}
+            
+            {!isLoading && !error && allPosts.length === 0 && (
+              <EmptyState
+                icon={<AlertCircle className="h-12 w-12" />}
+                title={
+                  activeFeedTab === 'following' 
+                    ? "No posts from people you follow"
+                    : "No posts yet"
+                }
+                description={
+                  activeFeedTab === 'following'
+                    ? "Follow more users and experts to see their posts here"
+                    : "Be the first to share your financial knowledge!"
+                }
+                action={
+                  activeFeedTab === 'following'
+                    ? { label: 'Discover People', onClick: () => navigate('/discover') }
+                    : undefined
+                }
+              />
+            )}
+            
+            {!isLoading && !error && allPosts.length > 0 && (
+              <div className="space-y-4">
+                {allPosts.map(post => (
+                  <FeedPostCard 
+                    key={post.id} 
+                    post={post} 
+                    onProfileClick={handleProfileClick}
+                    onPostClick={handlePostClick}
+                  />
+                ))}
+                
+                {/* Infinite scroll trigger */}
+                <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+                  {isFetchingNextPage && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Loading more...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </Tabs>
     </div>
   );

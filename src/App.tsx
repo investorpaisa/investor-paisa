@@ -7,24 +7,23 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SessionProvider } from "@/contexts/SessionContext";
 import "./App.css";
 
+// Pages
 import Landing from "@/pages/Landing";
-import Login from "@/pages/auth/Login";
-import Register from "@/pages/auth/Register";
-import Home from "@/pages/Home";
+import Auth from "@/pages/Auth";
+import Feed from "@/pages/Feed";
+import PostDetail from "@/pages/PostDetail";
 import Profile from "@/pages/Profile";
 import EditProfile from "@/pages/EditProfile";
 import Discover from "@/pages/Discover";
 import Inbox from "@/pages/Inbox";
 import MessagesNew from "@/pages/MessagesNew";
 import Notifications from "@/pages/Notifications";
-import Circle from "@/pages/Circle";
-import Circles from "@/pages/Circles";
-import Feed from "@/pages/Feed";
-import Dashboard from "@/pages/Dashboard";
 import Markets from "@/pages/Markets";
 import StockDetail from "@/pages/StockDetail";
+import NotFound from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
+import MainLayout from "@/layouts/MainLayout";
 
 const queryClient = new QueryClient();
 
@@ -40,15 +39,27 @@ function App() {
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Landing />} />
-                <Route path="/auth/login" element={<Login />} />
-                <Route path="/auth/register" element={<Register />} />
+                <Route path="/auth" element={<Auth />} />
+                
+                {/* Legacy auth routes - redirect to new auth */}
+                <Route path="/auth/login" element={<Navigate to="/auth" replace />} />
+                <Route path="/auth/register" element={<Navigate to="/auth" replace />} />
+                
+                {/* Feed - accessible to all (anonymous browsing) */}
+                <Route path="/feed" element={
+                  <MainLayout>
+                    <Feed />
+                  </MainLayout>
+                } />
+                
+                {/* Post detail - accessible to all */}
+                <Route path="/post/:postId" element={
+                  <MainLayout>
+                    <PostDetail />
+                  </MainLayout>
+                } />
                 
                 {/* Protected routes */}
-                <Route path="/home" element={
-                  <ProtectedRoute>
-                    <Home />
-                  </ProtectedRoute>
-                } />
                 <Route path="/onboarding" element={
                   <ProtectedRoute>
                     <OnboardingFlow />
@@ -56,80 +67,77 @@ function App() {
                 } />
                 <Route path="/profile" element={
                   <ProtectedRoute>
-                    <Profile />
+                    <MainLayout>
+                      <Profile />
+                    </MainLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/profile/:userId" element={
-                  <ProtectedRoute>
+                  <MainLayout>
                     <Profile />
-                  </ProtectedRoute>
+                  </MainLayout>
                 } />
                 <Route path="/edit-profile" element={
                   <ProtectedRoute>
-                    <EditProfile />
+                    <MainLayout>
+                      <EditProfile />
+                    </MainLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/discover" element={
-                  <ProtectedRoute>
+                  <MainLayout>
                     <Discover />
-                  </ProtectedRoute>
-                } />
-                <Route path="/feed" element={
-                  <ProtectedRoute>
-                    <Feed />
-                  </ProtectedRoute>
-                } />
-                <Route path="/circles" element={
-                  <ProtectedRoute>
-                    <Circles />
-                  </ProtectedRoute>
-                } />
-                <Route path="/circle/:circleId" element={
-                  <ProtectedRoute>
-                    <Circle />
-                  </ProtectedRoute>
+                  </MainLayout>
                 } />
                 <Route path="/inbox" element={
                   <ProtectedRoute>
-                    <Inbox />
+                    <MainLayout>
+                      <Inbox />
+                    </MainLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/messages" element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Inbox />
+                    </MainLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/messages/new" element={
                   <ProtectedRoute>
-                    <MessagesNew />
+                    <MainLayout>
+                      <MessagesNew />
+                    </MainLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/notifications" element={
                   <ProtectedRoute>
-                    <Notifications />
-                  </ProtectedRoute>
-                } />
-                <Route path="/dashboard" element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } />
-                <Route path="/network" element={
-                  <ProtectedRoute>
-                    <Circles />
+                    <MainLayout>
+                      <Notifications />
+                    </MainLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/markets" element={
-                  <ProtectedRoute>
+                  <MainLayout>
                     <Markets />
-                  </ProtectedRoute>
+                  </MainLayout>
                 } />
                 <Route path="/markets/:symbol" element={
-                  <ProtectedRoute>
+                  <MainLayout>
                     <StockDetail />
-                  </ProtectedRoute>
+                  </MainLayout>
                 } />
                 
                 {/* Redirect legacy routes */}
-                <Route path="/professional" element={<Navigate to="/home" replace />} />
+                <Route path="/home" element={<Navigate to="/feed" replace />} />
+                <Route path="/professional" element={<Navigate to="/feed" replace />} />
+                <Route path="/dashboard" element={<Navigate to="/feed" replace />} />
+                <Route path="/circles" element={<Navigate to="/discover" replace />} />
+                <Route path="/circle/:circleId" element={<Navigate to="/discover" replace />} />
+                <Route path="/network" element={<Navigate to="/discover" replace />} />
                 
-                {/* Redirect to home for any unmatched routes */}
-                <Route path="*" element={<Navigate to="/home" replace />} />
+                {/* 404 */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </SessionProvider>
           </AuthProvider>
