@@ -62,6 +62,11 @@ export interface ProfileFormData {
   linkedin_url?: string;
   twitter_url?: string;
   instagram_url?: string;
+  goals?: string[];
+  privacy_experience?: boolean;
+  privacy_education?: boolean;
+  privacy_certifications?: boolean;
+  privacy_skills?: boolean;
 }
 
 export interface EditProfileState {
@@ -70,6 +75,7 @@ export interface EditProfileState {
   educations: Education[];
   certifications: Certification[];
   skills: string[];
+  goals: string[];
   isDirty: boolean;
 }
 
@@ -87,11 +93,17 @@ export function useEditProfile() {
       linkedin_url: '',
       twitter_url: '',
       instagram_url: '',
+      goals: [],
+      privacy_experience: true,
+      privacy_education: true,
+      privacy_certifications: true,
+      privacy_skills: true,
     },
     experiences: [],
     educations: [],
     certifications: [],
     skills: [],
+    goals: [],
     isDirty: false,
   });
 
@@ -188,7 +200,13 @@ export function useEditProfile() {
           linkedin_url: (profileData as any).linkedin_url || '',
           twitter_url: (profileData as any).twitter_url || '',
           instagram_url: (profileData as any).instagram_url || '',
+          goals: (profileData as any).goals || [],
+          privacy_experience: (profileData as any).privacy_experience !== false,
+          privacy_education: (profileData as any).privacy_education !== false,
+          privacy_certifications: (profileData as any).privacy_certifications !== false,
+          privacy_skills: (profileData as any).privacy_skills !== false,
         },
+        goals: (profileData as any).goals || [],
         isDirty: false,
       }));
     }
@@ -243,6 +261,15 @@ export function useEditProfile() {
     setState(prev => ({ ...prev, skills, isDirty: true }));
   }, []);
 
+  const updateGoals = useCallback((goals: string[]) => {
+    setState(prev => ({ 
+      ...prev, 
+      goals, 
+      profile: { ...prev.profile, goals },
+      isDirty: true 
+    }));
+  }, []);
+
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -260,6 +287,11 @@ export function useEditProfile() {
           linkedin_url: state.profile.linkedin_url || null,
           twitter_url: state.profile.twitter_url || null,
           instagram_url: state.profile.instagram_url || null,
+          goals: state.goals.length > 0 ? state.goals : null,
+          privacy_experience: state.profile.privacy_experience,
+          privacy_education: state.profile.privacy_education,
+          privacy_certifications: state.profile.privacy_certifications,
+          privacy_skills: state.profile.privacy_skills,
         } as any)
         .eq('id', user.id);
       
@@ -396,6 +428,7 @@ export function useEditProfile() {
     updateEducations,
     updateCertifications,
     updateSkills,
+    updateGoals,
     save: saveMutation.mutate,
     user,
     authProfile,

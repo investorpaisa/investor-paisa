@@ -30,11 +30,13 @@ interface PostCardProps {
 interface PostCardHeaderProps {
   post: EnhancedPost;
   onClick?: (post: EnhancedPost) => void;
+  onBookmark?: (post: EnhancedPost) => void;
+  onShare?: (post: EnhancedPost) => void;
 }
 
-const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick }) => {
+const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookmark, onShare }) => {
   const handleProfileClick = (event: React.MouseEvent) => {
-    event.stopPropagation(); // Stop event propagation to prevent triggering the card's onClick
+    event.stopPropagation();
   };
 
   // Get post type label
@@ -49,7 +51,7 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick }) => {
 
   return (
     <CardHeader className="p-4 pb-2">
-      {/* Top row: Type badge left, 3-dots right */}
+      {/* Top row: Type badge left, Bookmark + 3-dots right */}
       <div className="flex items-center justify-between mb-3">
         <div>
           {typeLabel && (
@@ -63,19 +65,42 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick }) => {
             </Badge>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>Report content</DropdownMenuItem>
-            <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
-            <DropdownMenuItem>Copy link</DropdownMenuItem>
-            <DropdownMenuItem>Share</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 ${post.isBookmarked ? 'text-primary' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onBookmark?.(post);
+            }}
+          >
+            <Bookmark className="h-4 w-4" fill={post.isBookmarked ? "currentColor" : "none"} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={(e) => {
+                e.stopPropagation();
+                onShare?.(post);
+              }}>
+                Share
+              </DropdownMenuItem>
+              <DropdownMenuItem>Report content</DropdownMenuItem>
+              <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
+              <DropdownMenuItem>Copy link</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       
       {/* Author row */}
@@ -114,8 +139,8 @@ interface PostCardContentProps {
 const PostCardContent: React.FC<PostCardContentProps> = ({ post, onClick }) => {
   return (
     <CardContent className="p-4 pt-2 cursor-pointer text-left" onClick={() => onClick?.(post)}>
-      <h3 className="text-lg font-medium mb-2">{post.title}</h3>
-      <p className="text-muted-foreground text-sm">{post.content}</p>
+      <h3 className="text-lg font-medium mb-2 text-left">{post.title}</h3>
+      <p className="text-muted-foreground text-sm text-left">{post.content}</p>
     </CardContent>
   );
 };
@@ -124,38 +149,38 @@ interface PostCardFooterProps {
   post: EnhancedPost;
   onLike?: (post: EnhancedPost) => void;
   onComment?: (post: EnhancedPost) => void;
-  onShare?: (post: EnhancedPost) => void;
-  onBookmark?: (post: EnhancedPost) => void;
 }
 
-// Share icon removed from footer - now only in 3-dot menu
-const PostCardFooter: React.FC<PostCardFooterProps> = ({ post, onLike, onComment, onBookmark }) => {
+// Share and Bookmark icons removed from footer - now in header area
+const PostCardFooter: React.FC<PostCardFooterProps> = ({ post, onLike, onComment }) => {
   return (
-    <CardFooter className="p-4 pt-0 flex justify-between">
+    <CardFooter className="p-4 pt-0">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="sm"
           className={`gap-1 ${post.isLiked ? 'text-primary' : ''}`}
-          onClick={() => onLike?.(post)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onLike?.(post);
+          }}
         >
           <Heart className="h-4 w-4" fill={post.isLiked ? "currentColor" : "none"} />
           <span>{post.like_count}</span>
         </Button>
-        <Button variant="ghost" size="sm" className="gap-1" onClick={() => onComment?.(post)}>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="gap-1" 
+          onClick={(e) => {
+            e.stopPropagation();
+            onComment?.(post);
+          }}
+        >
           <MessageSquare className="h-4 w-4" />
           <span>{post.comment_count}</span>
         </Button>
-        {/* Share icon removed - now only in 3-dot menu */}
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={post.isBookmarked ? 'text-primary' : ''}
-        onClick={() => onBookmark?.(post)}
-      >
-        <Bookmark className="h-4 w-4" fill={post.isBookmarked ? "currentColor" : "none"} />
-      </Button>
     </CardFooter>
   );
 };
@@ -173,15 +198,13 @@ const PostCard: React.FC<PostCardProps> = ({
 }) => {
   return (
     <Card className={`border shadow-sm animate-hover-rise ${className || ''}`} onClick={() => isClickable && onClick?.(post)}>
-      <PostCardHeader post={post} onClick={onClick} />
+      <PostCardHeader post={post} onClick={onClick} onBookmark={onBookmark} onShare={onShare} />
       <PostCardContent post={post} onClick={onClick} />
       {showActions && (
         <PostCardFooter
           post={post}
           onLike={onLike}
           onComment={onComment}
-          onShare={onShare}
-          onBookmark={onBookmark}
         />
       )}
     </Card>
