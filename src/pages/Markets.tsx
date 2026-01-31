@@ -178,56 +178,7 @@ function CryptoCard({ symbol, enabled }: { symbol: string; enabled: boolean }) {
   );
 }
 
-function MarketNav() {
-  const navigate = useNavigate();
-  const { user, profile } = useAuth();
-
-  const navigation = [
-    { name: 'Home', href: '/feed', icon: Home },
-    { name: 'Markets', href: '/markets', icon: BarChart3 },
-    { name: 'Messages', href: '/messages', icon: MessageCircle },
-    { name: 'Notifications', href: '/notifications', icon: Bell },
-  ];
-
-  return (
-    <nav className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-end h-16">
-
-          <div className="flex items-center space-x-2">
-            {navigation.map((item) => (
-              <Button
-                key={item.name}
-                variant="ghost"
-                size="sm"
-                className="flex flex-col items-center p-2 h-12 w-12 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
-                onClick={() => navigate(item.href)}
-              >
-                <item.icon className="h-5 w-5" />
-              </Button>
-            ))}
-            
-            <div className="ml-4 flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-1 rounded-full hover:bg-muted"
-                onClick={() => navigate('/profile')}
-              >
-                <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/20 transition-all">
-                  <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                    {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
+// MarketNav removed - using global navigation from MainLayout
 
 export default function Markets() {
   const navigate = useNavigate();
@@ -271,9 +222,7 @@ export default function Markets() {
 
   return (
     <div className="min-h-screen bg-background">
-      <MarketNav />
-      
-      <div className="container mx-auto py-6 px-4 max-w-7xl">
+      <div className="container mx-auto py-4 px-2 sm:px-4 max-w-7xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">

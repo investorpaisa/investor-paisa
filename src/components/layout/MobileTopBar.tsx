@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
-import logoIcon from '@/assets/logo-icon.png';
 
 export const MobileTopBar: React.FC = () => {
   const navigate = useNavigate();
@@ -16,18 +15,13 @@ export const MobileTopBar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 glass border-b border-border/50">
-      <div className="flex items-center justify-between h-14 px-4">
-        {/* Logo */}
+      <div className="flex items-center justify-between h-12 px-2">
+        {/* Logo - Text only */}
         {!showSearch && (
           <div 
-            className="flex items-center space-x-2 cursor-pointer"
+            className="flex items-center cursor-pointer"
             onClick={() => navigate('/feed')}
           >
-            <img 
-              src={logoIcon} 
-              alt="InvestorPaisa" 
-              className="h-8 w-8 rounded-lg"
-            />
             <span className="text-lg font-bold font-heading">
               Investor<span className="text-primary">Paisa</span>
             </span>
@@ -74,11 +68,11 @@ export const MobileTopBar: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button 
               variant="ghost" 
               size="icon"
-              className="h-10 w-10 rounded-xl"
+              className="h-9 w-9 rounded-lg"
               onClick={() => setShowSearch(true)}
             >
               <Search className="h-5 w-5" />
@@ -87,7 +81,7 @@ export const MobileTopBar: React.FC = () => {
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="h-10 w-10 rounded-xl"
+                className="h-9 w-9 rounded-lg"
                 onClick={() => navigate('/messages')}
               >
                 <MessageCircle className="h-5 w-5" />

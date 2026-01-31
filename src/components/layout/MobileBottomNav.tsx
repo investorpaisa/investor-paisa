@@ -23,16 +23,16 @@ export const MobileBottomNav: React.FC = () => {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 glass border-t border-border/50 safe-area-pb">
-      <div className="flex items-center justify-around h-16 px-2">
+      <div className="flex items-center justify-around h-14 px-1">
         {navigation.map((item) => {
           if (item.center) {
             return (
               <Button
                 key={item.name}
                 onClick={item.action}
-                className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg -mt-4 glow-primary"
+                className="h-11 w-11 rounded-full bg-primary text-primary-foreground shadow-lg -mt-3 glow-primary"
               >
-                <item.icon className="h-6 w-6" />
+                <item.icon className="h-5 w-5" />
               </Button>
             );
           }
@@ -42,7 +42,7 @@ export const MobileBottomNav: React.FC = () => {
               key={item.name}
               variant="ghost"
               size="sm"
-              className={`flex flex-col items-center justify-center h-14 w-14 rounded-xl gap-1 ${
+              className={`flex flex-col items-center justify-center h-12 w-12 rounded-lg gap-0.5 ${
                 isActive(item.href)
                   ? 'text-primary bg-primary/10'
                   : 'text-muted-foreground hover:text-foreground'
@@ -50,7 +50,7 @@ export const MobileBottomNav: React.FC = () => {
               onClick={() => item.href && navigate(item.href)}
             >
               <item.icon className="h-5 w-5" />
-              <span className="text-[10px] font-medium">{item.name}</span>
+              <span className="text-[9px] font-medium">{item.name}</span>
             </Button>
           );
         })}

@@ -329,8 +329,14 @@ const Feed: React.FC = () => {
       .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id')
       .eq('moderation_status', 'approved')
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
       .range(start, start + PAGE_SIZE - 1);
+
+    // For 'pulse' tab, show open questions (trending questions)
+    if (activeFeedTab === 'pulse') {
+      query = query.eq('type', 'question').order('created_at', { ascending: false });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
 
     // For 'following' tab, filter by followed users
     if (activeFeedTab === 'following' && user?.id) {
@@ -425,14 +431,14 @@ const Feed: React.FC = () => {
   const allPosts = data?.pages.flatMap(page => page.posts) || [];
 
   return (
-    <div className="container max-w-2xl mx-auto py-6 px-4">
+    <div className="container max-w-2xl mx-auto py-4 px-2 sm:px-4">
       <Tabs 
         value={activeFeedTab} 
         onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'trending' | 'following')} 
         className="w-full"
       >
-        <TabsList className="grid grid-cols-3 h-12 mb-6 bg-secondary/50 border border-border/50 rounded-xl p-1">
-          <TabsTrigger 
+        <TabsList className="grid grid-cols-3 w-full h-11 mb-4 bg-secondary/50 border border-border/50 rounded-xl p-1">
+          <TabsTrigger
             value="pulse" 
             className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
           >
