@@ -19,12 +19,22 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
-    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
+    
+    // Try OTP-specific credentials first, fall back to Twilio
+    const otpAccountSid = Deno.env.get('OTP_ACCOUNT_SID') || Deno.env.get('TWILIO_ACCOUNT_SID')
+    const otpAuthToken = Deno.env.get('OTP_AUTH_TOKEN') || Deno.env.get('TWILIO_AUTH_TOKEN')
+
+    console.log('[OTP Request] Starting OTP request...')
+    console.log('[OTP Request] OTP_ACCOUNT_SID configured:', !!Deno.env.get('OTP_ACCOUNT_SID'))
+    console.log('[OTP Request] OTP_AUTH_TOKEN configured:', !!Deno.env.get('OTP_AUTH_TOKEN'))
+    console.log('[OTP Request] TWILIO_ACCOUNT_SID configured:', !!Deno.env.get('TWILIO_ACCOUNT_SID'))
+    console.log('[OTP Request] TWILIO_AUTH_TOKEN configured:', !!Deno.env.get('TWILIO_AUTH_TOKEN'))
+    console.log('[OTP Request] Using Account SID:', otpAccountSid ? otpAccountSid.substring(0, 6) + '...' : 'NONE')
 
     // Get user from auth header
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
+      console.error('[OTP Request] No authorization header provided')
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -38,25 +48,35 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
+      console.error('[OTP Request] Invalid token:', authError)
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    const { phoneNumber } = await req.json()
+    console.log('[OTP Request] User authenticated:', user.id)
+
+    const requestBody = await req.json()
+    const { phoneNumber } = requestBody
+    console.log('[OTP Request] Phone number received:', phoneNumber)
 
     if (!phoneNumber) {
+      console.error('[OTP Request] Phone number is missing')
       return new Response(JSON.stringify({ error: 'Phone number is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Validate phone number format (basic validation)
+    // Validate phone number format (basic validation - accepts with or without country code)
     const phoneRegex = /^\+?[1-9]\d{9,14}$/
-    if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
-      return new Response(JSON.stringify({ error: 'Invalid phone number format' }), {
+    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '')
+    console.log('[OTP Request] Cleaned phone number:', cleanedPhone)
+    
+    if (!phoneRegex.test(cleanedPhone)) {
+      console.error('[OTP Request] Invalid phone format:', cleanedPhone)
+      return new Response(JSON.stringify({ error: 'Invalid phone number format. Include country code (e.g., +91XXXXXXXXXX)' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -66,88 +86,128 @@ serve(async (req) => {
     const otp = generateOTP()
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
 
+    console.log('[OTP Request] Generated OTP:', otp)
+    console.log('[OTP Request] Expires at:', expiresAt.toISOString())
+
     // Delete any existing OTP requests for this user
-    await supabase
+    const { error: deleteError } = await supabase
       .from('mobile_otp_requests')
       .delete()
       .eq('user_id', user.id)
+
+    if (deleteError) {
+      console.warn('[OTP Request] Failed to delete existing OTPs:', deleteError)
+    }
 
     // Store OTP in database
     const { error: insertError } = await supabase
       .from('mobile_otp_requests')
       .insert({
         user_id: user.id,
-        phone_number: phoneNumber,
+        phone_number: cleanedPhone,
         otp_code: otp,
         expires_at: expiresAt.toISOString(),
         verified: false
       })
 
     if (insertError) {
-      console.error('Failed to store OTP:', insertError)
+      console.error('[OTP Request] Failed to store OTP:', insertError)
       return new Response(JSON.stringify({ error: 'Failed to generate OTP' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    // Send OTP via Twilio if configured
-    if (twilioAccountSid && twilioAuthToken) {
+    console.log('[OTP Request] OTP stored in database successfully')
+
+    // Send OTP via SMS if credentials are configured
+    let smsSent = false
+    let smsError: string | null = null
+
+    if (otpAccountSid && otpAuthToken) {
       try {
         // Format phone number for Twilio (ensure it starts with +)
-        const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
+        const formattedPhone = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`
+        
+        console.log('[OTP Request] Sending SMS to:', formattedPhone)
+        console.log('[OTP Request] Using Account SID:', otpAccountSid.substring(0, 10) + '...')
         
         // Create Basic Auth header for Twilio
-        const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`)
+        const twilioAuth = btoa(`${otpAccountSid}:${otpAuthToken}`)
         
-        // Twilio Verify API - you can also use the SMS API directly
-        // For production, consider using Twilio Verify Service
+        const smsBody = new URLSearchParams({
+          To: formattedPhone,
+          From: '+12184534076', // Twilio phone number
+          Body: `Your InvestorPaisa verification code is ${otp}. Valid for 10 minutes. Do not share this code.`,
+        })
+
+        console.log('[OTP Request] SMS request body:', {
+          To: formattedPhone,
+          From: '+12184534076',
+          Body: `OTP: ${otp.substring(0, 3)}***`
+        })
+
         const twilioResponse = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+          `https://api.twilio.com/2010-04-01/Accounts/${otpAccountSid}/Messages.json`,
           {
             method: 'POST',
             headers: {
               'Authorization': `Basic ${twilioAuth}`,
               'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams({
-              To: formattedPhone,
-              From: '+12184534076', // Twilio phone number - update if needed
-              Body: `Your InvestorPaisa verification code is ${otp}. Valid for 10 minutes. Do not share this code.`,
-            }),
+            body: smsBody,
           }
         )
 
+        const twilioResponseText = await twilioResponse.text()
+        console.log('[OTP Request] Twilio response status:', twilioResponse.status)
+        console.log('[OTP Request] Twilio response:', twilioResponseText)
+
         if (!twilioResponse.ok) {
-          const errorData = await twilioResponse.json()
-          console.error('Twilio SMS error:', errorData)
-          // Don't fail the request - OTP is stored in DB for fallback
-          console.log('[WARN] SMS sending failed, OTP stored in database for manual verification')
+          const errorData = JSON.parse(twilioResponseText)
+          console.error('[OTP Request] Twilio SMS error:', errorData)
+          smsError = errorData.message || 'SMS sending failed'
         } else {
-          console.log('SMS sent successfully via Twilio')
+          const successData = JSON.parse(twilioResponseText)
+          console.log('[OTP Request] SMS sent successfully! SID:', successData.sid)
+          smsSent = true
         }
-      } catch (smsError) {
-        console.error('Twilio gateway error:', smsError)
-        // Continue even if SMS fails - OTP is stored for demo purposes
+      } catch (smsErr) {
+        console.error('[OTP Request] Twilio gateway error:', smsErr)
+        smsError = smsErr instanceof Error ? smsErr.message : 'SMS gateway error'
       }
     } else {
-      // No Twilio configured - development mode
-      console.log('[DEV MODE] Twilio not configured - OTP stored in database only')
-      console.log(`[DEV MODE] OTP for ${phoneNumber}: ${otp}`)
+      console.log('[OTP Request] [DEV MODE] SMS credentials not configured')
+      console.log('[OTP Request] [DEV MODE] OTP for testing:', otp)
     }
 
-    return new Response(JSON.stringify({ 
+    // Build response
+    const response: Record<string, unknown> = { 
       success: true,
-      message: 'OTP sent successfully',
-      // In dev mode without SMS, include OTP for testing (remove in production!)
-      ...((!twilioAccountSid || !twilioAuthToken) && { dev_otp: otp })
-    }), {
+      message: smsSent ? 'OTP sent successfully' : 'OTP generated (check logs for dev mode)',
+      smsSent,
+    }
+
+    // Include OTP in dev mode or if SMS failed
+    if (!smsSent) {
+      response.dev_otp = otp
+      if (smsError) {
+        response.smsError = smsError
+      }
+    }
+
+    console.log('[OTP Request] Final response:', { ...response, dev_otp: response.dev_otp ? '***' : undefined })
+
+    return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
-    console.error('OTP request error:', error)
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    console.error('[OTP Request] Unhandled error:', error)
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

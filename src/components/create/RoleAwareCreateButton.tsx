@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, LogIn, ShieldCheck } from 'lucide-react';
+import { Plus, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/stores/uiStore';
 import { useUserTier } from '@/hooks/useUserTier';
@@ -32,10 +32,10 @@ export const RoleAwareCreateButton: React.FC<RoleAwareCreateButtonProps> = ({
     setCreateHubOpen(true);
   };
 
+  // Always use Plus icon (except for guests who see LogIn)
   const getIcon = () => {
     if (isGuest) return LogIn;
-    if (isUnverified) return ShieldCheck;
-    return Plus;
+    return Plus; // Use Plus for both verified and unverified users
   };
 
   const getLabel = () => {
