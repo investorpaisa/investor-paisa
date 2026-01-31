@@ -33,16 +33,26 @@ export const useSearch = (query: string, limit: number = 3) => {
         return { posts: [], users: [], topics: [] };
       }
 
-      const searchTerm = `%${debouncedQuery}%`;
+      // Sanitize query to prevent SQL injection - remove SQL wildcards and special chars
+      const sanitizedQuery = debouncedQuery
+        .replace(/[%_\\'";\-\-]/g, '') // Remove SQL wildcards, quotes, and comment chars
+        .trim()
+        .slice(0, 100); // Limit length
 
-      // Search in parallel
+      if (!sanitizedQuery || sanitizedQuery.length < 1) {
+        return { posts: [], users: [], topics: [] };
+      }
+
+      const searchTerm = `%${sanitizedQuery}%`;
+
+      // Search in parallel using sanitized query
       const [postsResult, usersResult, topicsResult] = await Promise.all([
         supabase
           .from('posts')
           .select('id, title, body, type')
           .eq('moderation_status', 'approved')
           .is('deleted_at', null)
-          .or(`title.ilike.${searchTerm},body.ilike.${searchTerm}`)
+          .or(`title.ilike.%${sanitizedQuery}%,body.ilike.%${sanitizedQuery}%`)
           .limit(limit),
         supabase
           .from('profiles')
