@@ -1,21 +1,31 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import logoIcon from '@/assets/logo-icon.png';
 
 export const PageLoader: React.FC = () => {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
-        <motion.img
-          src={logoIcon}
-          alt="Loading"
-          className="h-16 w-16 rounded-2xl"
-          animate={{ scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }}
+        <motion.div
+          className="text-2xl font-bold font-heading"
+          animate={{ scale: [1, 1.05, 1], opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <div className="space-y-2 text-center">
-          <p className="text-sm text-primary font-medium">Loading</p>
-          <p className="text-xs text-muted-foreground">Please wait while we prepare your experience</p>
+        >
+          Investor<span className="text-primary">Paisa</span>
+        </motion.div>
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              className="w-2 h-2 bg-primary rounded-full"
+              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+              transition={{ 
+                duration: 0.8, 
+                repeat: Infinity, 
+                delay: i * 0.15,
+                ease: "easeInOut" 
+              }}
+            />
+          ))}
         </div>
       </div>
     </div>

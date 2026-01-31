@@ -276,6 +276,74 @@ export type Database = {
           },
         ]
       }
+      communities: {
+        Row: {
+          created_at: string | null
+          creator_id: string
+          id: string
+          is_closed: boolean | null
+          logo_url: string | null
+          member_count: number | null
+          name: string
+          objective: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          creator_id: string
+          id?: string
+          is_closed?: boolean | null
+          logo_url?: string | null
+          member_count?: number | null
+          name: string
+          objective?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          creator_id?: string
+          id?: string
+          is_closed?: boolean | null
+          logo_url?: string | null
+          member_count?: number | null
+          name?: string
+          objective?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      community_members: {
+        Row: {
+          community_id: string
+          id: string
+          joined_at: string | null
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          community_id: string
+          id?: string
+          joined_at?: string | null
+          role?: string | null
+          user_id: string
+        }
+        Update: {
+          community_id?: string
+          id?: string
+          joined_at?: string | null
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_members_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
