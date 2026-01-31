@@ -117,15 +117,16 @@ serve(async (req) => {
         // Continue even if SMS fails - OTP is stored for demo purposes
       }
     } else {
-      // No SMS gateway configured - log OTP for development
-      console.log(`[DEV] OTP for ${phoneNumber}: ${otp}`)
+      // No SMS gateway configured - in production this should be an error
+      // In development, the OTP is stored in the database for testing via direct DB access
+      // Never log OTPs or return them in responses for security
+      console.log('[DEV] SMS gateway not configured - OTP stored in database only')
     }
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'OTP sent successfully',
-      // Include OTP in dev mode for testing
-      ...(Deno.env.get('ENVIRONMENT') === 'development' ? { otp } : {})
+      message: 'OTP sent successfully'
+      // Never expose OTP in API responses - retrieve from database for testing if needed
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
