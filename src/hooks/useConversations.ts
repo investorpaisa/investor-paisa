@@ -107,7 +107,8 @@ export const useConversations = () => {
       });
     },
     enabled: !!user?.id,
-    staleTime: 30000,
+    staleTime: 60000, // 1 minute
+    refetchOnWindowFocus: false,
   });
 };
 

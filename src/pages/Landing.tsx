@@ -267,7 +267,7 @@ const Landing: React.FC = () => {
             <Button 
               size="lg" 
               onClick={handleStartCTA}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6 h-auto rounded-2xl glow-primary font-semibold"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-base py-3 h-12 rounded-2xl glow-primary font-semibold"
             >
               Start
               <ArrowRight className="ml-2 h-5 w-5" />
