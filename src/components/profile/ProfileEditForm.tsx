@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,11 +6,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 import { 
   User, Mail, Phone, MapPin, Building, Calendar, 
   Globe, Linkedin, Twitter, Plus, X, Edit3, Save,
-  Briefcase, GraduationCap, Award, Star
+  Briefcase, GraduationCap, Award, Star, Shield
 } from 'lucide-react';
+import { LinkedInConnect } from './LinkedInConnect';
+import { MobileVerifyButton } from './MobileVerificationModal';
 
 interface Experience {
   id: string;
@@ -257,6 +259,51 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, onSav
                 placeholder="https://twitter.com/yourhandle"
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Verification Section */}
+      <Card className="rounded-3xl border-0 shadow-lg bg-white/90 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center text-xl font-bold text-slate-900">
+            <Shield className="h-5 w-5 mr-2 text-green-600" />
+            Account Verification
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Verify your account to unlock more features and build trust with the community.
+          </p>
+          
+          <div className="flex flex-wrap gap-4">
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700">LinkedIn</span>
+              <LinkedInConnect 
+                isConnected={profile?.linkedin_verified || false}
+                onConnect={() => window.location.reload()}
+              />
+            </div>
+            
+            <Separator orientation="vertical" className="h-auto hidden sm:block" />
+            
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700">Mobile Number</span>
+              <MobileVerifyButton 
+                isVerified={profile?.mobile_verified || false}
+                onVerify={() => window.location.reload()}
+              />
+            </div>
+          </div>
+          
+          <div className="bg-blue-50 rounded-2xl p-4 text-sm text-blue-800">
+            <strong>Benefits of verification:</strong>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>Get a verified badge on your profile</li>
+              <li>Unlock the ability to post questions and comments</li>
+              <li>Build credibility with other community members</li>
+              <li>Access to advanced features like brand collaborations</li>
+            </ul>
           </div>
         </CardContent>
       </Card>

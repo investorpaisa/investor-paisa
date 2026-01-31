@@ -32,3 +32,21 @@ verify_jwt = false
 
 [functions.news-trending]
 verify_jwt = false
+
+[functions.auth-linkedin-connect]
+verify_jwt = false
+
+[functions.auth-mobile-request-otp]
+verify_jwt = false
+
+[functions.auth-mobile-verify-otp]
+verify_jwt = false
+
+[functions.messages-mass]
+verify_jwt = false
+
+[functions.promotions-profiles]
+verify_jwt = false
+
+[functions.leaderboard-influencers]
+verify_jwt = false

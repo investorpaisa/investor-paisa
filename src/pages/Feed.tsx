@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useUIStore } from '@/stores/uiStore';
 import { trackEvents } from '@/services/analytics/googleAnalytics';
+import { TrendingStructuredFeed } from '@/components/feed/TrendingStructuredFeed';
 
 interface Post {
   id: string;
@@ -424,13 +425,28 @@ const Feed: React.FC = () => {
     }
   };
 
+  // Fetch news for trending tab
+  const { data: trendingNews } = useQuery({
+    queryKey: ['trending-news'],
+    queryFn: async () => {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/news-trending?type=all&limit=20`
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.articles || [];
+    },
+    enabled: activeFeedTab === 'trending',
+    staleTime: 60000,
+  });
+
   // Fetch posts with infinite scroll
   const fetchPosts = async ({ pageParam = 0 }: { pageParam?: number }) => {
     const start = pageParam * PAGE_SIZE;
     
     let query = supabase
       .from('posts')
-      .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id')
+      .select('id, title, body, type, created_at, like_count, comment_count, share_count, author_id, upvote_count, downvote_count')
       .eq('moderation_status', 'approved')
       .is('deleted_at', null)
       .range(start, start + PAGE_SIZE - 1);
@@ -442,22 +458,35 @@ const Feed: React.FC = () => {
     }
 
     if (activeFeedTab === 'following' && user?.id) {
+      // Get users the current user follows
       const { data: follows } = await supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', user.id);
 
-      if (follows && follows.length > 0) {
-        const followingIds = follows.map(f => f.following_id);
-        query = query.in('author_id', followingIds);
-      } else {
+      // Get communities the user is a member of
+      const { data: memberships } = await supabase
+        .from('community_members')
+        .select('community_id')
+        .eq('user_id', user.id);
+
+      const followingIds = follows?.map(f => f.following_id) || [];
+      const communityIds = memberships?.map(m => m.community_id) || [];
+
+      if (followingIds.length === 0 && communityIds.length === 0) {
         return { posts: [], nextPage: undefined };
       }
-    }
 
-    if (activeFeedTab === 'trending') {
-      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-      query = query.gte('created_at', twoDaysAgo).order('like_count', { ascending: false });
+      // Build OR condition for following users OR community posts
+      let orConditions = [];
+      if (followingIds.length > 0) {
+        orConditions.push(`author_id.in.(${followingIds.join(',')})`);
+      }
+      if (communityIds.length > 0) {
+        orConditions.push(`community_id.in.(${communityIds.join(',')})`);
+      }
+      
+      query = query.or(orConditions.join(','));
     }
 
     const { data: postsData, error } = await query;
@@ -577,30 +606,41 @@ const Feed: React.FC = () => {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {isLoading && <FeedSkeleton />}
-              
-              {error && <ErrorState onRetry={() => refetch()} />}
-              
-              {!isLoading && !error && allPosts.length === 0 && (
-                <EmptyState
-                  icon={<AlertCircle className="h-10 w-10" />}
-                  title={
-                    activeFeedTab === 'following' 
-                      ? "No posts from people you follow"
-                      : "No posts yet"
-                  }
-                  description={
-                    activeFeedTab === 'following'
-                      ? "Follow more users and experts to see their posts here"
-                      : "Be the first to share your financial knowledge!"
-                  }
-                  action={
-                    activeFeedTab === 'following'
-                      ? { label: 'Find People', onClick: () => navigate('/feed') }
-                      : undefined
-                  }
+              {/* Show structured feed for Trending tab */}
+              {activeFeedTab === 'trending' && (
+                <TrendingStructuredFeed 
+                  newsArticles={trendingNews || []}
+                  isLoading={isLoading}
                 />
               )}
+              
+              {/* Show regular feed for Pulse and Following tabs */}
+              {activeFeedTab !== 'trending' && (
+                <>
+                  {isLoading && <FeedSkeleton />}
+                  
+                  {error && <ErrorState onRetry={() => refetch()} />}
+                  
+                  {!isLoading && !error && allPosts.length === 0 && (
+                    <EmptyState
+                      icon={<AlertCircle className="h-10 w-10" />}
+                      title={
+                        activeFeedTab === 'following' 
+                          ? "No posts from people you follow"
+                          : "No posts yet"
+                      }
+                      description={
+                        activeFeedTab === 'following'
+                          ? "Follow more users and experts to see their posts here"
+                          : "Be the first to share your financial knowledge!"
+                      }
+                      action={
+                        activeFeedTab === 'following'
+                          ? { label: 'Find People', onClick: () => navigate('/feed') }
+                          : undefined
+                      }
+                    />
+                  )}
               
               {!isLoading && !error && allPosts.length > 0 && (
                 <div className="space-y-3">
@@ -623,6 +663,8 @@ const Feed: React.FC = () => {
                     )}
                   </div>
                 </div>
+              )}
+                </>
               )}
             </motion.div>
           </AnimatePresence>
