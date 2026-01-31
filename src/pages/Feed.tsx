@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw, Repeat } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,9 +19,11 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
+import { useToggleRepost, useIsReposted } from '@/hooks/useReposts';
 import { toast } from 'sonner';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useUIStore } from '@/stores/uiStore';
+import { trackEvents } from '@/services/analytics/googleAnalytics';
 
 interface Post {
   id: string;
@@ -92,42 +94,93 @@ const FeedPostCard: React.FC<{
   const navigate = useNavigate();
   const toggleReaction = useToggleReaction();
   const toggleBookmark = useToggleBookmark();
-  const [localLikeCount, setLocalLikeCount] = useState(post.like_count || 0);
-  const [isLikeAnimating, setIsLikeAnimating] = useState(false);
+  const toggleRepost = useToggleRepost();
+  
+  const [localUpvoteCount, setLocalUpvoteCount] = useState((post as any).upvote_count || 0);
+  const [localDownvoteCount, setLocalDownvoteCount] = useState((post as any).downvote_count || 0);
+  const [isVoteAnimating, setIsVoteAnimating] = useState(false);
   
   const { data: userReactions } = useUserReaction(post.id, 'post');
   const { data: isBookmarked } = useIsBookmarked(post.id);
+  const { data: isReposted } = useIsReposted(post.id);
   
-  const isLiked = userReactions?.some(r => r.reaction_type === 'like') || false;
+  const isUpvoted = userReactions?.some(r => r.reaction_type === 'upvote') || false;
+  const isDownvoted = userReactions?.some(r => r.reaction_type === 'downvote') || false;
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleUpvote = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
       navigate('/auth');
       return;
     }
     
-    setIsLikeAnimating(true);
-    setLocalLikeCount(prev => isLiked ? prev - 1 : prev + 1);
+    setIsVoteAnimating(true);
+    if (isUpvoted) {
+      setLocalUpvoteCount(prev => prev - 1);
+    } else {
+      setLocalUpvoteCount(prev => prev + 1);
+      if (isDownvoted) {
+        setLocalDownvoteCount(prev => prev - 1);
+      }
+    }
     
     toggleReaction.mutate({
       entityId: post.id,
       entityType: 'post',
-      reactionType: 'like',
+      reactionType: 'upvote',
     }, {
+      onSuccess: () => {
+        trackEvents.upvote(post.id);
+      },
       onError: () => {
-        setLocalLikeCount(post.like_count || 0);
-        toast.error('Failed to like post');
+        setLocalUpvoteCount((post as any).upvote_count || 0);
+        setLocalDownvoteCount((post as any).downvote_count || 0);
+        toast.error('Failed to vote');
       }
     });
     
-    setTimeout(() => setIsLikeAnimating(false), 300);
+    setTimeout(() => setIsVoteAnimating(false), 300);
   };
 
-  const handleDoubleTapLike = () => {
-    if (!isLiked) {
-      handleLike({ stopPropagation: () => {} } as React.MouseEvent);
+  const handleDownvote = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
     }
+    
+    if (isDownvoted) {
+      setLocalDownvoteCount(prev => prev - 1);
+    } else {
+      setLocalDownvoteCount(prev => prev + 1);
+      if (isUpvoted) {
+        setLocalUpvoteCount(prev => prev - 1);
+      }
+    }
+    
+    toggleReaction.mutate({
+      entityId: post.id,
+      entityType: 'post',
+      reactionType: 'downvote',
+    }, {
+      onSuccess: () => {
+        trackEvents.downvote(post.id);
+      },
+      onError: () => {
+        setLocalUpvoteCount((post as any).upvote_count || 0);
+        setLocalDownvoteCount((post as any).downvote_count || 0);
+        toast.error('Failed to vote');
+      }
+    });
+  };
+
+  const handleRepost = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    toggleRepost.mutate(post.id);
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -144,13 +197,21 @@ const FeedPostCard: React.FC<{
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    const url = `${window.location.origin}/post/${post.id}`;
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
-      toast.success('Link copied to clipboard');
+      if (navigator.share) {
+        await navigator.share({ url, title: post.title || 'Check out this post' });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success('Link copied to clipboard');
+      }
+      trackEvents.share('post', post.id);
     } catch {
-      toast.error('Failed to copy link');
+      toast.error('Failed to share');
     }
   };
+
+  const voteScore = localUpvoteCount - localDownvoteCount;
 
   return (
     <motion.div
@@ -161,7 +222,6 @@ const FeedPostCard: React.FC<{
     >
       <Card 
         className="border border-border/50 bg-card/50 hover:border-primary/30 transition-all cursor-pointer"
-        onDoubleClick={handleDoubleTapLike}
         onClick={() => onPostClick(post.id)}
       >
         <CardHeader className="p-3 pb-2">
@@ -226,25 +286,45 @@ const FeedPostCard: React.FC<{
         </CardContent>
         <CardFooter className="p-3 pt-0 flex justify-between">
           <div className="flex items-center gap-1">
+            {/* Upvote button */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`gap-1 h-7 px-2 text-xs ${isLiked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={handleLike}
+              className={`h-7 px-2 ${isUpvoted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={handleUpvote}
               disabled={toggleReaction.isPending}
             >
               <motion.div
-                animate={isLikeAnimating ? { scale: [1, 1.3, 1] } : {}}
-                transition={{ duration: 0.3 }}
+                animate={isVoteAnimating ? { scale: [1, 1.2, 1] } : {}}
+                transition={{ duration: 0.2 }}
               >
-                <Heart className="h-3.5 w-3.5" fill={isLiked ? "currentColor" : "none"} />
+                <ArrowUp className="h-4 w-4" />
               </motion.div>
-              <span>{localLikeCount}</span>
             </Button>
+            
+            {/* Vote score */}
+            <span className={`text-sm font-medium min-w-[24px] text-center ${
+              voteScore > 0 ? 'text-primary' : voteScore < 0 ? 'text-destructive' : 'text-muted-foreground'
+            }`}>
+              {voteScore}
+            </span>
+            
+            {/* Downvote button */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              className={`h-7 px-2 ${isDownvoted ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={handleDownvote}
+              disabled={toggleReaction.isPending}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+            
+            {/* Comments */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground ml-2"
               onClick={(e) => {
                 e.stopPropagation();
                 onPostClick(post.id);
@@ -253,10 +333,23 @@ const FeedPostCard: React.FC<{
               <MessageSquare className="h-3.5 w-3.5" />
               <span>{post.comment_count || 0}</span>
             </Button>
+            
+            {/* Repost */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              className={`h-7 px-2 ${isReposted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={handleRepost}
+              disabled={toggleRepost.isPending}
+            >
+              <Repeat className="h-3.5 w-3.5" />
+            </Button>
+            
+            {/* Share */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 px-2 text-muted-foreground hover:text-foreground"
               onClick={handleShare}
             >
               <Share2 className="h-3.5 w-3.5" />

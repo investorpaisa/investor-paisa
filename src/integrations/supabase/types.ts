@@ -940,8 +940,10 @@ export type Database = {
       news_articles: {
         Row: {
           category: string
+          country: string | null
           created_at: string
           id: string
+          image_url: string | null
           published_at: string
           relevance_score: number
           source: string
@@ -952,8 +954,10 @@ export type Database = {
         }
         Insert: {
           category: string
+          country?: string | null
           created_at?: string
           id: string
+          image_url?: string | null
           published_at?: string
           relevance_score?: number
           source: string
@@ -964,8 +968,10 @@ export type Database = {
         }
         Update: {
           category?: string
+          country?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           published_at?: string
           relevance_score?: number
           source?: string
@@ -1086,6 +1092,7 @@ export type Database = {
           body: string | null
           body_html: string | null
           comment_count: number | null
+          community_id: string | null
           created_at: string
           deleted_at: string | null
           downvote_count: number | null
@@ -1116,6 +1123,7 @@ export type Database = {
           body?: string | null
           body_html?: string | null
           comment_count?: number | null
+          community_id?: string | null
           created_at?: string
           deleted_at?: string | null
           downvote_count?: number | null
@@ -1146,6 +1154,7 @@ export type Database = {
           body?: string | null
           body_html?: string | null
           comment_count?: number | null
+          community_id?: string | null
           created_at?: string
           deleted_at?: string | null
           downvote_count?: number | null
@@ -1169,7 +1178,15 @@ export type Database = {
           upvote_count?: number | null
           view_count?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "posts_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1189,6 +1206,7 @@ export type Database = {
           is_premium: boolean | null
           is_verified: boolean | null
           language: string | null
+          linkedin_id: string | null
           linkedin_verified: boolean | null
           location: string | null
           mobile_verified: boolean | null
@@ -1223,6 +1241,7 @@ export type Database = {
           is_premium?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          linkedin_id?: string | null
           linkedin_verified?: boolean | null
           location?: string | null
           mobile_verified?: boolean | null
@@ -1257,6 +1276,7 @@ export type Database = {
           is_premium?: boolean | null
           is_verified?: boolean | null
           language?: string | null
+          linkedin_id?: string | null
           linkedin_verified?: boolean | null
           location?: string | null
           mobile_verified?: boolean | null
@@ -1335,6 +1355,42 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      reposts: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reposts_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reposts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       search_history: {
         Row: {
