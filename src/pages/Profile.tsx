@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Edit, Mail, Users, MessageCircle, Calendar, Briefcase, 
-  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus, LogOut
+  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus, LogOut, CheckCircle2
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { useToggleFollow, useIsFollowing } from '@/hooks/useFollows';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -246,6 +247,30 @@ const Profile = () => {
                     <span className="text-muted-foreground ml-1">Posts</span>
                   </div>
                 </div>
+
+                {/* Profile Completeness Score - Only on own profile */}
+                {isOwnProfile && (
+                  <div className="mt-4 p-4 bg-secondary/50 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">Profile Completeness</span>
+                      </div>
+                      <span className="text-sm font-bold text-primary">
+                        {(profile as any).profile_completeness_score || 0}%
+                      </span>
+                    </div>
+                    <Progress 
+                      value={(profile as any).profile_completeness_score || 0} 
+                      className="h-2"
+                    />
+                    {((profile as any).profile_completeness_score || 0) < 100 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Complete your profile to unlock more features and build trust
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
