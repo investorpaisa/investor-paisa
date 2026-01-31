@@ -43,7 +43,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, userEmail?: string) => {
     if (!supabase) return null;
     
     try {
@@ -51,7 +51,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+
+      // Profile doesn't exist - create it as fallback
+      if (!data && !error) {
+        const username = userEmail ? userEmail.split('@')[0] : `user_${userId.slice(0, 8)}`;
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            username,
+            email: userEmail,
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+          return null;
+        }
+        return newProfile as Profile;
+      }
 
       if (error) {
         console.error('Error fetching profile:', error);
@@ -67,7 +87,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshProfile = useCallback(async () => {
     if (user) {
-      const profileData = await fetchProfile(user.id);
+      const profileData = await fetchProfile(user.id, user.email ?? undefined);
       setProfile(profileData);
     }
   }, [user, fetchProfile]);
@@ -84,7 +104,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(initialSession?.user ?? null);
       
       if (initialSession?.user) {
-        const profileData = await fetchProfile(initialSession.user.id);
+        const profileData = await fetchProfile(initialSession.user.id, initialSession.user.email ?? undefined);
         setProfile(profileData);
       }
       
@@ -97,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
-        const profileData = await fetchProfile(newSession.user.id);
+        const profileData = await fetchProfile(newSession.user.id, newSession.user.email ?? undefined);
         setProfile(profileData);
       } else {
         setProfile(null);
