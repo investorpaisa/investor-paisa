@@ -12,8 +12,15 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { 
   Edit, Mail, MessageCircle, Calendar, Briefcase, 
-  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus, LogOut, CheckCircle2
+  MapPin, Award, TrendingUp, Shield, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToggleFollow, useIsFollowing } from '@/hooks/useFollows';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -209,9 +216,27 @@ const Profile = () => {
                 </div>
                 
                 {isOwnProfile ? (
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate('/edit-profile')}>
-                    <Edit className="mr-1.5 h-3 w-3" /> Edit
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => navigate('/edit-profile')}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={handleLogout}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Log out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : (
                   <div className="flex gap-2">
                     <Button 

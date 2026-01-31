@@ -4,23 +4,35 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { trackEvents } from '@/services/analytics/googleAnalytics';
 
+interface Repost {
+  id: string;
+  user_id: string;
+  post_id: string;
+  created_at: string;
+}
+
 // Check if user has reposted a specific post
 export const useIsReposted = (postId: string | undefined) => {
   const { user } = useAuth();
 
   return useQuery({
     queryKey: ['repost', postId, user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<boolean> => {
       if (!user?.id || !postId) return false;
 
-      const { data, error } = await supabase
+      // Direct query to reposts table (cast to any since types may not be generated yet)
+      const { data, error } = await (supabase as any)
         .from('reposts')
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error checking repost:', error);
+        return false;
+      }
+
       return !!data;
     },
     enabled: !!user?.id && !!postId,
@@ -31,15 +43,18 @@ export const useIsReposted = (postId: string | undefined) => {
 export const useRepostCount = (postId: string | undefined) => {
   return useQuery({
     queryKey: ['repost-count', postId],
-    queryFn: async () => {
+    queryFn: async (): Promise<number> => {
       if (!postId) return 0;
 
-      const { count, error } = await supabase
+      const { count, error } = await (supabase as any)
         .from('reposts')
         .select('*', { count: 'exact', head: true })
         .eq('post_id', postId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error getting repost count:', error);
+        return 0;
+      }
       return count || 0;
     },
     enabled: !!postId,
@@ -52,20 +67,25 @@ export const useToggleRepost = () => {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (postId: string) => {
+    mutationFn: async (postId: string): Promise<{ action: 'added' | 'removed' }> => {
       if (!user?.id) throw new Error('Must be logged in');
 
       // Check if repost exists
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await (supabase as any)
         .from('reposts')
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', user.id)
         .maybeSingle();
 
+      if (checkError) {
+        console.error('Error checking repost:', checkError);
+        throw new Error('Failed to check repost status');
+      }
+
       if (existing) {
         // Remove repost
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('reposts')
           .delete()
           .eq('id', existing.id);
@@ -74,7 +94,7 @@ export const useToggleRepost = () => {
         return { action: 'removed' };
       } else {
         // Add repost
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('reposts')
           .insert({
             user_id: user.id,
@@ -97,7 +117,7 @@ export const useToggleRepost = () => {
         toast.success('Removed repost');
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error('Failed to repost: ' + error.message);
     },
   });

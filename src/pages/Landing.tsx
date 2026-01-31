@@ -1,28 +1,48 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ArrowRight, Search, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { LandingFeedPreview } from '@/components/landing/LandingFeedPreview';
-
+import { trackEvents } from '@/services/analytics/googleAnalytics';
+import { useSearch } from '@/hooks/useSearch';
+import { Card } from '@/components/ui/card';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showAuthGate, setShowAuthGate] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  const { data: searchResults, isLoading: searchLoading } = useSearch(searchQuery, 3);
 
-  const handleContinue = () => {
-    navigate('/feed');
-  };
+  // Track landing page view
+  useEffect(() => {
+    trackEvents.landingView();
+  }, []);
 
-  const handleSignIn = () => {
-    navigate('/auth');
+  // Redirect to feed if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/feed');
+    }
+  }, [user, navigate]);
+
+  const handleStartCTA = () => {
+    setShowAuthGate(true);
   };
 
   const handleAuthGate = () => {
     setShowAuthGate(true);
+  };
+
+  const handleSearchResultClick = (type: string, id: string) => {
+    // Gate all interactions for logged-out users
+    handleAuthGate();
   };
 
   const containerVariants = {
@@ -38,8 +58,14 @@ const Landing: React.FC = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
   };
 
+  const hasSearchResults = searchResults && (
+    searchResults.posts.length > 0 || 
+    searchResults.users.length > 0 || 
+    searchResults.topics.length > 0
+  );
+
   return (
-    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden pb-20">
       {/* Animated gradient noise background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
@@ -70,35 +96,140 @@ const Landing: React.FC = () => {
         />
       </div>
 
-      {/* Header */}
-      <header className="relative z-20 px-6 py-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center">
-            <span className="font-bold text-xl font-heading">
+      {/* Header with Search */}
+      <header className="relative z-20 px-4 sm:px-6 py-4 sm:py-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          {/* Logo - Left */}
+          <div className="flex items-center shrink-0">
+            <span className="font-bold text-lg sm:text-xl font-heading">
               Investor<span className="text-primary">Paisa</span>
             </span>
           </div>
           
-          <Button 
-            variant="ghost" 
-            onClick={handleSignIn}
-            className="text-muted-foreground hover:text-foreground font-medium"
-          >
-            Sign in
-          </Button>
+          {/* Search - Center */}
+          <div className="hidden sm:flex flex-1 max-w-md mx-auto relative">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search posts, people, topics..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSearchResults(e.target.value.length > 0);
+                }}
+                onFocus={() => searchQuery.length > 0 && setShowSearchResults(true)}
+                className="pl-10 pr-10 bg-secondary/50 border-border/50 focus:border-primary/50 h-10"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => {
+                    setSearchQuery('');
+                    setShowSearchResults(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                >
+                  <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+              
+              {/* Search Results Dropdown */}
+              <AnimatePresence>
+                {showSearchResults && searchQuery.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 z-50"
+                  >
+                    <Card className="p-3 bg-card border-border/50 shadow-lg max-h-80 overflow-y-auto">
+                      {searchLoading ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">Searching...</p>
+                      ) : !hasSearchResults ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No results found</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {searchResults.posts.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Posts</p>
+                              {searchResults.posts.map((post) => (
+                                <button
+                                  key={post.id}
+                                  onClick={() => handleSearchResultClick('post', post.id)}
+                                  className="w-full text-left p-2 rounded-lg hover:bg-secondary/50 transition-colors"
+                                >
+                                  <p className="text-sm font-medium line-clamp-1">{post.title || 'Untitled'}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {searchResults.users.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">People</p>
+                              {searchResults.users.map((user) => (
+                                <button
+                                  key={user.id}
+                                  onClick={() => handleSearchResultClick('user', user.id)}
+                                  className="w-full text-left p-2 rounded-lg hover:bg-secondary/50 transition-colors"
+                                >
+                                  <p className="text-sm">@{user.username}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {searchResults.topics.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Topics</p>
+                              {searchResults.topics.map((topic) => (
+                                <button
+                                  key={topic.id}
+                                  onClick={() => handleSearchResultClick('topic', topic.id)}
+                                  className="w-full text-left p-2 rounded-lg hover:bg-secondary/50 transition-colors"
+                                >
+                                  <p className="text-sm">{topic.name}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+          
+          {/* Empty right side to balance header */}
+          <div className="w-20 hidden sm:block" />
+        </div>
+        
+        {/* Mobile search */}
+        <div className="sm:hidden mt-4 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search posts, people, topics..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowSearchResults(e.target.value.length > 0);
+            }}
+            className="pl-10 bg-secondary/50 border-border/50"
+          />
         </div>
       </header>
 
       {/* Hero Section */}
       <motion.section 
-        className="relative z-10 pt-16 pb-12 px-6"
+        className="relative z-10 pt-8 sm:pt-16 pb-8 sm:pb-12 px-4 sm:px-6"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
         <div className="max-w-4xl mx-auto text-center">
           <motion.h1 
-            className="text-5xl md:text-7xl font-bold mb-6 leading-tight font-heading"
+            className="text-4xl sm:text-5xl md:text-7xl font-bold mb-4 sm:mb-6 leading-tight font-heading"
             variants={itemVariants}
           >
             Ask anything about{' '}
@@ -106,100 +237,51 @@ const Landing: React.FC = () => {
           </motion.h1>
           
           <motion.p 
-            className="text-xl md:text-2xl text-muted-foreground mb-12"
+            className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 sm:mb-12"
             variants={itemVariants}
           >
             AI + community + experts.
           </motion.p>
-          
-          <motion.div 
-            className="flex flex-col sm:flex-row gap-4 justify-center"
-            variants={itemVariants}
-          >
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button 
-                size="lg" 
-                onClick={handleContinue}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-10 py-6 h-auto rounded-2xl glow-primary font-semibold"
-              >
-                Continue
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </motion.div>
-            
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button 
-                variant="outline" 
-                size="lg" 
-                onClick={handleSignIn}
-                className="text-lg px-10 py-6 h-auto border-2 border-border hover:bg-secondary rounded-2xl"
-              >
-                Sign in
-              </Button>
-            </motion.div>
-          </motion.div>
         </div>
       </motion.section>
 
       {/* Limited Pulse Feed Preview (first 10 items, read-only) */}
       <motion.section
-        className="relative z-10 px-6 pb-20"
+        className="relative z-10 px-4 sm:px-6 pb-24"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6, duration: 0.8 }}
       >
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="text-lg font-medium text-muted-foreground">
-              Trending discussions
-            </h2>
-          </div>
           <LandingFeedPreview onAuthRequired={handleAuthGate} />
         </div>
       </motion.section>
 
+      {/* Sticky Bottom CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-background via-background to-transparent">
+        <div className="max-w-md mx-auto">
+          <motion.div 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }}
+          >
+            <Button 
+              size="lg" 
+              onClick={handleStartCTA}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6 h-auto rounded-2xl glow-primary font-semibold"
+            >
+              Start
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+
       {/* Auth Gate Modal */}
-      <AnimatePresence>
-        {showAuthGate && (
-          <Dialog open={showAuthGate} onOpenChange={setShowAuthGate}>
-            <DialogContent className="glass border-border/50 rounded-3xl max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-heading text-center">
-                  Create a free account to save & ask.
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <Button
-                  onClick={() => navigate('/auth?provider=google')}
-                  className="w-full flex items-center justify-center space-x-3 py-4 px-6 rounded-xl bg-primary text-primary-foreground font-medium"
-                >
-                  <svg className="h-5 w-5" viewBox="0 0 24 24">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="currentColor" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="currentColor" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="currentColor" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="currentColor" />
-                  </svg>
-                  <span>Continue with Google</span>
-                </Button>
-                <Button
-                  onClick={() => navigate('/auth')}
-                  variant="outline"
-                  className="w-full py-4 px-6 rounded-xl border-2 border-border"
-                >
-                  Continue with Email
-                </Button>
-                <Button
-                  onClick={() => setShowAuthGate(false)}
-                  variant="ghost"
-                  className="w-full text-muted-foreground"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      </AnimatePresence>
+      <AuthGateModal 
+        isOpen={showAuthGate} 
+        onClose={() => setShowAuthGate(false)} 
+        title="Create free account to interact"
+      />
     </div>
   );
 };
