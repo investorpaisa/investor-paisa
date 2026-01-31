@@ -35,7 +35,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: 'Feed', href: '/feed', icon: Home },
     { name: 'Discover', href: '/discover', icon: Compass },
     { name: 'Markets', href: '/markets', icon: BarChart3 },
     { name: 'Live', href: '/live', icon: Video },
