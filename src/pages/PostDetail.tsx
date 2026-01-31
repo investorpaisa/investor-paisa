@@ -8,15 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
-import { Heart, MessageSquare, Share2, Bookmark, ArrowLeft, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Bookmark, ArrowLeft, TrendingUp, AlertCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AnswerBottomSheet } from '@/components/answer/AnswerBottomSheet';
-import { useUIStore } from '@/stores/uiStore';
+import { motion } from 'framer-motion';
+import { InlineAnswerInput } from '@/components/answer/InlineAnswerInput';
 
 interface Answer {
   id: string;
@@ -86,8 +84,6 @@ const PostDetail: React.FC = () => {
   const { user } = useAuth();
   const toggleReaction = useToggleReaction();
   const toggleBookmark = useToggleBookmark();
-  const { isAnswerSheetOpen, openAnswerSheet, closeAnswerSheet } = useUIStore();
-  const [showAnswerSheet, setShowAnswerSheet] = useState(false);
 
   // Fetch post
   const { data: post, isLoading: postLoading, error: postError } = useQuery({
@@ -315,42 +311,40 @@ const PostDetail: React.FC = () => {
 
         {/* Answers Section */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">
-              {answers && answers.length > 0 ? `${answers.length} Answers` : 'Answers'}
-            </h2>
-            <Button 
-              className="bg-primary text-primary-foreground"
-              onClick={() => {
-                if (!user) {
-                  navigate('/auth');
-                  return;
-                }
-                setShowAnswerSheet(true);
-              }}
-            >
-              Answer
-            </Button>
-          </div>
+          <h2 className="text-lg font-medium">
+            {answers && answers.length > 0 ? `${answers.length} Answers` : 'Answers'}
+          </h2>
+
+          {/* Inline Answer Input - No AI Modal */}
+          {user ? (
+            <Card className="border border-border/50 bg-card/50">
+              <CardContent className="p-4">
+                <InlineAnswerInput 
+                  postId={postId || ''} 
+                  placeholder="Add an answer..."
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border border-border/50 bg-card/50">
+              <CardContent className="p-4 text-center">
+                <p className="text-muted-foreground text-sm mb-3">Sign in to answer this question</p>
+                <Button 
+                  onClick={() => navigate('/auth')}
+                  className="bg-primary text-primary-foreground"
+                >
+                  Sign In
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {answers && answers.length === 0 && (
             <Card className="border border-border/50 bg-card/50">
               <CardContent className="p-8 text-center">
                 <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-medium mb-2">No answers yet</h3>
-                <p className="text-muted-foreground text-sm mb-4">Be the first to help!</p>
-                <Button 
-                  className="bg-primary text-primary-foreground"
-                  onClick={() => {
-                    if (!user) {
-                      navigate('/auth');
-                      return;
-                    }
-                    setShowAnswerSheet(true);
-                  }}
-                >
-                  Write an Answer
-                </Button>
+                <p className="text-muted-foreground text-sm">Be the first to help!</p>
               </CardContent>
             </Card>
           )}
@@ -405,18 +399,6 @@ const PostDetail: React.FC = () => {
           ))}
         </div>
       </motion.div>
-
-      {/* Answer Bottom Sheet */}
-      <AnimatePresence>
-        {showAnswerSheet && post && (
-          <AnswerBottomSheet
-            postId={post.id}
-            postTitle={post.title}
-            postBody={post.body}
-            onClose={() => setShowAnswerSheet(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };
