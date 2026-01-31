@@ -5,16 +5,15 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { 
   Home, Search, MessageCircle, Bell, 
-  Compass, Plus, User
+  Compass
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { CreateHub } from '@/components/create/CreateHub';
-import { useUIStore } from '@/stores/uiStore';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileTopBar } from '@/components/layout/MobileTopBar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
-
+import { RoleAwareCreateButton } from '@/components/create/RoleAwareCreateButton';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -24,7 +23,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setCreateHubOpen } = useUIStore();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -155,13 +153,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Create Hub Modal */}
       <CreateHub />
 
-      {/* Floating Create Button - Desktop only */}
-      <Button
-        onClick={() => setCreateHubOpen(true)}
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg glow-primary"
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
+      {/* Floating Create Button - Desktop only with gradient animation */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <RoleAwareCreateButton />
+      </div>
     </div>
   );
 };

@@ -1,32 +1,40 @@
-
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
-  Bell, Heart, MessageCircle, Share2, Users, TrendingUp, 
-  Settings, CheckCheck, AlertCircle, UserPlus, Star
+  Bell, Heart, MessageCircle, Users, 
+  CheckCheck, AlertCircle, UserPlus
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useNotifications, useUnreadNotificationsCount, useMarkNotificationRead, useMarkAllNotificationsRead, Notification } from '@/hooks/useNotifications';
+import { useNotifications, useUnreadNotificationsCount, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Notifications: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = React.useState('all');
   const { data: notifications, isLoading, error } = useNotifications();
   const { data: unreadCount = 0 } = useUnreadNotificationsCount();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
+  // Redirect if not authenticated
+  React.useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'like': return Heart;
       case 'comment': return MessageCircle;
       case 'follow': return UserPlus;
-      case 'mention': return Share2;
-      case 'system': return AlertCircle;
       default: return Bell;
     }
   };
@@ -34,11 +42,9 @@ const Notifications: React.FC = () => {
   const getNotificationColor = (type: string) => {
     switch (type) {
       case 'like': return 'from-red-500 to-pink-500';
-      case 'comment': return 'from-blue-500 to-cyan-500';
+      case 'comment': return 'from-primary to-primary/70';
       case 'follow': return 'from-green-500 to-emerald-500';
-      case 'mention': return 'from-purple-500 to-violet-500';
-      case 'system': return 'from-slate-500 to-gray-500';
-      default: return 'from-blue-500 to-purple-500';
+      default: return 'from-primary to-primary/70';
     }
   };
 
@@ -57,17 +63,19 @@ const Notifications: React.FC = () => {
     return notifications.filter(n => n.type === activeTab);
   };
 
+  if (!user) return null;
+
   const renderLoadingSkeleton = () => (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {[1, 2, 3, 4].map((i) => (
-        <Card key={i} className="rounded-3xl">
-          <CardContent className="p-6">
-            <div className="flex items-start space-x-4">
-              <Skeleton className="h-12 w-12 rounded-2xl" />
+        <Card key={i} className="border border-border/50">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl flex-shrink-0" />
               <div className="flex-1 space-y-2">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-20" />
               </div>
             </div>
           </CardContent>
@@ -77,16 +85,16 @@ const Notifications: React.FC = () => {
   );
 
   const renderEmptyState = () => (
-    <Card className="rounded-3xl border-0 shadow-lg bg-card">
-      <CardContent className="p-12 text-center">
-        <div className="w-24 h-24 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-          <Bell className="h-12 w-12 text-primary" />
+    <Card className="border border-border/50 bg-card/50">
+      <CardContent className="p-8 sm:p-12 text-center">
+        <div className="w-14 h-14 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+          <Bell className="h-7 w-7 text-muted-foreground" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">No notifications</h3>
-        <p className="text-muted-foreground">
+        <h3 className="text-base sm:text-lg font-semibold mb-2">No notifications</h3>
+        <p className="text-muted-foreground text-xs sm:text-sm">
           {activeTab === 'unread' 
-            ? "You're all caught up! No unread notifications." 
-            : "No notifications in this category yet."
+            ? "You're all caught up!" 
+            : "No notifications yet"
           }
         </p>
       </CardContent>
@@ -94,90 +102,70 @@ const Notifications: React.FC = () => {
   );
 
   const renderErrorState = () => (
-    <Card className="rounded-3xl border-0 shadow-lg bg-card">
-      <CardContent className="p-12 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-        <h3 className="text-xl font-semibold mb-2">Failed to load notifications</h3>
-        <p className="text-muted-foreground mb-4">Something went wrong. Please try again.</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+    <Card className="border border-border/50 bg-card/50">
+      <CardContent className="p-8 sm:p-12 text-center">
+        <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-4" />
+        <h3 className="text-base sm:text-lg font-semibold mb-2">Something went wrong</h3>
+        <p className="text-muted-foreground text-xs sm:text-sm mb-4">Failed to load notifications</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
       </CardContent>
     </Card>
   );
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-2 py-4 sm:px-4">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center">
-                <Bell className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">Notifications</h1>
-                <p className="text-muted-foreground">Stay updated with your investment community</p>
-              </div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+              <Bell className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold">Notifications</h1>
               {unreadCount > 0 && (
-                <Badge className="bg-destructive text-destructive-foreground rounded-full h-6 w-6 p-0 flex items-center justify-center text-xs">
-                  {unreadCount}
-                </Badge>
+                <p className="text-xs text-muted-foreground">{unreadCount} unread</p>
               )}
             </div>
-            
-            <div className="flex items-center space-x-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleMarkAllAsRead}
-                className="rounded-2xl"
-                disabled={unreadCount === 0 || markAllRead.isPending}
-              >
-                <CheckCheck className="h-4 w-4 mr-2" />
-                Mark All Read
-              </Button>
-              <Button variant="outline" size="sm" className="rounded-2xl">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleMarkAllAsRead}
+            className="text-xs h-8 px-3"
+            disabled={unreadCount === 0 || markAllRead.isPending}
+          >
+            <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+            Mark all read
+          </Button>
         </div>
 
         {/* Filters */}
-        <Card className="mb-6 rounded-3xl border shadow-lg bg-card">
-          <CardContent className="p-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-5 h-auto mb-4 bg-muted rounded-2xl p-1">
-                <TabsTrigger value="all" className="rounded-xl">All</TabsTrigger>
-                <TabsTrigger value="unread" className="rounded-xl">
-                  <div className="flex items-center space-x-2">
-                    <span>Unread</span>
-                    {unreadCount > 0 && (
-                      <Badge className="bg-destructive text-destructive-foreground rounded-full h-4 w-4 p-0 flex items-center justify-center text-xs">
-                        {unreadCount}
-                      </Badge>
-                    )}
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger value="like" className="rounded-xl">
-                  <Heart className="h-4 w-4 mr-1" />
-                  Likes
-                </TabsTrigger>
-                <TabsTrigger value="comment" className="rounded-xl">
-                  <MessageCircle className="h-4 w-4 mr-1" />
-                  Comments
-                </TabsTrigger>
-                <TabsTrigger value="follow" className="rounded-xl">
-                  <Users className="h-4 w-4 mr-1" />
-                  Follows
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardContent>
-        </Card>
+        <div className="mb-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-4 h-9 bg-secondary/50 rounded-xl p-0.5">
+              <TabsTrigger value="all" className="text-xs rounded-lg h-8">All</TabsTrigger>
+              <TabsTrigger value="unread" className="text-xs rounded-lg h-8 gap-1">
+                Unread
+                {unreadCount > 0 && (
+                  <Badge className="bg-destructive text-destructive-foreground h-4 min-w-4 p-0 flex items-center justify-center text-[10px]">
+                    {unreadCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="like" className="text-xs rounded-lg h-8">
+                <Heart className="h-3 w-3" />
+              </TabsTrigger>
+              <TabsTrigger value="follow" className="text-xs rounded-lg h-8">
+                <Users className="h-3 w-3" />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
         {/* Notifications List */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {isLoading && renderLoadingSkeleton()}
           {error && renderErrorState()}
           {!isLoading && !error && filterNotifications().length === 0 && renderEmptyState()}
@@ -188,22 +176,22 @@ const Notifications: React.FC = () => {
             return (
               <Card 
                 key={notification.id} 
-                className={`rounded-3xl border shadow-lg bg-card hover:shadow-xl transition-all duration-300 group ${
-                  !notification.is_read ? 'ring-2 ring-primary/20' : ''
+                className={`border border-border/50 hover:border-primary/30 transition-all ${
+                  !notification.is_read ? 'bg-primary/5' : 'bg-card/50'
                 }`}
               >
-                <CardContent className="p-6">
-                  <div className="flex items-start space-x-4">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-start gap-3">
                     {/* Icon */}
-                    <div className={`p-3 rounded-2xl bg-gradient-to-r ${colorClass} flex-shrink-0`}>
-                      <Icon className="h-5 w-5 text-white" />
+                    <div className={`p-2 rounded-xl bg-gradient-to-r ${colorClass} flex-shrink-0`}>
+                      <Icon className="h-4 w-4 text-white" />
                     </div>
                     
-                    {/* Avatar (if available) */}
+                    {/* Avatar */}
                     {notification.actor && (
-                      <Avatar className="h-12 w-12 ring-2 ring-border flex-shrink-0">
+                      <Avatar className="h-9 w-9 flex-shrink-0">
                         <AvatarImage src={notification.actor.avatar_url || undefined} />
-                        <AvatarFallback className="bg-gradient-to-r from-primary to-secondary text-primary-foreground font-bold">
+                        <AvatarFallback className="bg-secondary text-xs">
                           {notification.actor.full_name?.charAt(0) || 'U'}
                         </AvatarFallback>
                       </Avatar>
@@ -211,21 +199,22 @@ const Notifications: React.FC = () => {
                     
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold">{notification.title || 'Notification'}</h3>
-                        <div className="flex items-center space-x-2">
-                          {!notification.is_read && (
-                            <div className="w-2 h-2 bg-primary rounded-full"></div>
-                          )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-medium text-sm line-clamp-1">
+                            {notification.title || 'Notification'}
+                          </h3>
+                          <p className="text-muted-foreground text-xs line-clamp-2 mt-0.5">
+                            {notification.body || 'You have a new notification'}
+                          </p>
                         </div>
+                        {!notification.is_read && (
+                          <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1.5"></div>
+                        )}
                       </div>
                       
-                      <p className="text-muted-foreground mb-3">
-                        {notification.body || 'You have a new notification'}
-                      </p>
-                      
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">
                           {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                         </p>
                         
@@ -234,11 +223,10 @@ const Notifications: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleMarkAsRead(notification.id)}
-                            className="rounded-2xl text-primary hover:bg-primary/10"
+                            className="h-6 px-2 text-[10px] text-primary hover:bg-primary/10"
                             disabled={markRead.isPending}
                           >
-                            <CheckCheck className="h-4 w-4 mr-1" />
-                            Mark Read
+                            Mark read
                           </Button>
                         )}
                       </div>
