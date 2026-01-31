@@ -4,11 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { 
   Home, Search, MessageCircle, Bell, 
-  TrendingUp, LogOut, BarChart3, Compass
+  TrendingUp, LogOut, BarChart3, Compass, Video, Plus
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PiCopilot } from '@/components/pi/PiCopilot';
+import { CreateHub } from '@/components/create/CreateHub';
+import { useUIStore } from '@/stores/uiStore';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -18,6 +21,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { setCreateHubOpen } = useUIStore();
 
   const handleLogout = async () => {
     try {
@@ -34,6 +38,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     { name: 'Feed', href: '/feed', icon: Home },
     { name: 'Discover', href: '/discover', icon: Compass },
     { name: 'Markets', href: '/markets', icon: BarChart3 },
+    { name: 'Live', href: '/live', icon: Video },
     { name: 'Messages', href: '/messages', icon: MessageCircle },
     { name: 'Notifications', href: '/notifications', icon: Bell },
   ];
@@ -137,6 +142,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <main className="flex-1">
         {children || <Outlet />}
       </main>
+
+      {/* Pi Copilot - Floating AI Assistant */}
+      <PiCopilot />
+      
+      {/* Create Hub Modal */}
+      <CreateHub />
     </div>
   );
 };
