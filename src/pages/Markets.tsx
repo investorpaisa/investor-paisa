@@ -209,20 +209,7 @@ function MarketNav() {
   return (
     <nav className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-4">
-            <div 
-              className="flex items-center space-x-2 cursor-pointer"
-              onClick={() => navigate('/home')}
-            >
-              <div className="h-8 w-8 bg-gradient-to-r from-primary to-primary/80 rounded-xl flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">
-                InvestorPaisa
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center justify-end h-16">
 
           <div className="flex items-center space-x-2">
             {navigation.map((item) => (
