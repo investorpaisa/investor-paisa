@@ -61,6 +61,8 @@ export const useNotifications = (limit = 50) => {
       })) as Notification[];
     },
     enabled: !!user?.id,
+    staleTime: 60000, // 1 minute - prevent excessive refetching
+    refetchOnWindowFocus: false,
   });
 };
 

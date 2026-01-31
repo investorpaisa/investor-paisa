@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
 function generateOTP(): string {
@@ -19,7 +19,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const smsApiKey = Deno.env.get('SMS_GATEWAY_API_KEY')
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
 
     // Get user from auth header
     const authHeader = req.headers.get('Authorization')
@@ -90,43 +91,56 @@ serve(async (req) => {
       })
     }
 
-    // Send OTP via SMS gateway (if configured)
-    if (smsApiKey) {
+    // Send OTP via Twilio if configured
+    if (twilioAccountSid && twilioAuthToken) {
       try {
-        // Generic SMS API integration (MSG91 style)
-        // You can replace this with your preferred SMS gateway
-        const smsResponse = await fetch('https://api.msg91.com/api/v5/otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'authkey': smsApiKey,
-          },
-          body: JSON.stringify({
-            mobile: phoneNumber.replace('+', ''),
-            otp: otp,
-            sender: 'INVPSA',
-            message: `Your Investor Paisa verification code is ${otp}. Valid for 10 minutes.`,
-          }),
-        })
+        // Format phone number for Twilio (ensure it starts with +)
+        const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
+        
+        // Create Basic Auth header for Twilio
+        const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`)
+        
+        // Twilio Verify API - you can also use the SMS API directly
+        // For production, consider using Twilio Verify Service
+        const twilioResponse = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Basic ${twilioAuth}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              To: formattedPhone,
+              From: '+12184534076', // Twilio phone number - update if needed
+              Body: `Your InvestorPaisa verification code is ${otp}. Valid for 10 minutes. Do not share this code.`,
+            }),
+          }
+        )
 
-        if (!smsResponse.ok) {
-          console.warn('SMS sending failed, but OTP is stored')
+        if (!twilioResponse.ok) {
+          const errorData = await twilioResponse.json()
+          console.error('Twilio SMS error:', errorData)
+          // Don't fail the request - OTP is stored in DB for fallback
+          console.log('[WARN] SMS sending failed, OTP stored in database for manual verification')
+        } else {
+          console.log('SMS sent successfully via Twilio')
         }
       } catch (smsError) {
-        console.warn('SMS gateway error:', smsError)
+        console.error('Twilio gateway error:', smsError)
         // Continue even if SMS fails - OTP is stored for demo purposes
       }
     } else {
-      // No SMS gateway configured - in production this should be an error
-      // In development, the OTP is stored in the database for testing via direct DB access
-      // Never log OTPs or return them in responses for security
-      console.log('[DEV] SMS gateway not configured - OTP stored in database only')
+      // No Twilio configured - development mode
+      console.log('[DEV MODE] Twilio not configured - OTP stored in database only')
+      console.log(`[DEV MODE] OTP for ${phoneNumber}: ${otp}`)
     }
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'OTP sent successfully'
-      // Never expose OTP in API responses - retrieve from database for testing if needed
+      message: 'OTP sent successfully',
+      // In dev mode without SMS, include OTP for testing (remove in production!)
+      ...((!twilioAccountSid || !twilioAuthToken) && { dev_otp: otp })
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

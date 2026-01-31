@@ -98,38 +98,58 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    let authChangeTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isMounted = true;
+
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
+      if (!isMounted) return;
+      
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
       
       if (initialSession?.user) {
         const profileData = await fetchProfile(initialSession.user.id, initialSession.user.email ?? undefined);
-        setProfile(profileData);
+        if (isMounted) setProfile(profileData);
       }
       
-      setIsLoading(false);
+      if (isMounted) setIsLoading(false);
     });
 
-    // Listen for auth changes
+    // Listen for auth changes with debouncing to prevent rapid state updates
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
+      // Debounce auth state changes to prevent flickering during token refresh
+      if (authChangeTimeout) clearTimeout(authChangeTimeout);
+      
+      authChangeTimeout = setTimeout(async () => {
+        if (!isMounted) return;
+        
+        // Only update state if there's an actual change
+        const sessionChanged = newSession?.access_token !== session?.access_token;
+        const userChanged = newSession?.user?.id !== user?.id;
+        
+        if (sessionChanged || userChanged || event === 'SIGNED_OUT') {
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
 
-      if (newSession?.user) {
-        const profileData = await fetchProfile(newSession.user.id, newSession.user.email ?? undefined);
-        setProfile(profileData);
-      } else {
-        setProfile(null);
-      }
+          if (newSession?.user) {
+            const profileData = await fetchProfile(newSession.user.id, newSession.user.email ?? undefined);
+            if (isMounted) setProfile(profileData);
+          } else {
+            setProfile(null);
+          }
+        }
 
-      setIsLoading(false);
+        if (isMounted) setIsLoading(false);
+      }, 100);
     });
 
     return () => {
+      isMounted = false;
+      if (authChangeTimeout) clearTimeout(authChangeTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, session?.access_token, user?.id]);
 
   const signInWithGoogle = async () => {
     if (!supabase) throw new Error('Supabase not configured');

@@ -110,8 +110,24 @@ export const LandingFeedPreview: React.FC<LandingFeedPreviewProps> = ({ onAuthRe
 
   if (!posts || posts.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <p>No posts yet. Be the first to ask!</p>
+      <div className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FeedTab)} className="w-full">
+          <TabsList className="grid grid-cols-2 w-full bg-secondary/50 border border-border/50 rounded-xl p-1">
+            <TabsTrigger value="pulse" className="rounded-lg text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
+              Pulse
+            </TabsTrigger>
+            <TabsTrigger value="trending" className="rounded-lg text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
+              Trending
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="text-center py-16">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+            <MessageSquare className="h-8 w-8 text-primary/60" />
+          </div>
+          <p className="font-medium text-foreground mb-1">Be the first to ask!</p>
+          <p className="text-sm text-muted-foreground">Start a conversation about money</p>
+        </div>
       </div>
     );
   }
