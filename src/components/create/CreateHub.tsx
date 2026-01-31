@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link2, X, Loader2, FileText, LayoutGrid, Lightbulb, Video, Send, ArrowLeft, Check } from 'lucide-react';
+import { Link2, X, Loader2, FileText, Lightbulb, Send, ArrowLeft, Users, Handshake, MessageSquare, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUIStore } from '@/stores/uiStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +24,8 @@ interface ConvertedContent {
   tags: string[];
 }
 
+type CreateOption = 'question' | 'opinion' | 'community' | 'collab';
+
 export const CreateHub: React.FC = () => {
   const { isCreateHubOpen, setCreateHubOpen } = useUIStore();
   const { user } = useAuth();
@@ -36,6 +38,11 @@ export const CreateHub: React.FC = () => {
   const [selectedFormat, setSelectedFormat] = useState<'thread' | 'carousel' | 'tip' | 'video'>('thread');
   const [editedContent, setEditedContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<CreateOption | null>(null);
+  
+  // Direct post form state
+  const [postTitle, setPostTitle] = useState('');
+  const [postBody, setPostBody] = useState('');
 
   const handleConvert = async () => {
     if (!url.trim()) return;
@@ -95,18 +102,23 @@ export const CreateHub: React.FC = () => {
       return;
     }
 
-    if (!editedContent.trim()) return;
+    const content = convertedContent ? editedContent : postBody;
+    const title = convertedContent ? convertedContent.title : postTitle;
+
+    if (!content.trim()) return;
 
     setIsSubmitting(true);
     try {
-      const postType = selectedFormat === 'tip' ? 'tip' : 'thread';
+      const postType = selectedOption === 'question' ? 'question' : 
+                       selectedOption === 'opinion' ? 'insight' : 
+                       selectedFormat === 'tip' ? 'tip' : 'thread';
       
       const { error } = await supabase.from('posts').insert({
         author_id: user.id,
-        title: convertedContent?.title || 'Shared Content',
-        body: editedContent,
+        title: title || 'Shared Content',
+        body: content,
         type: postType,
-        link_url: url,
+        link_url: url || null,
         moderation_status: 'approved',
       });
 
@@ -130,11 +142,22 @@ export const CreateHub: React.FC = () => {
     setConvertedContent(null);
     setEditedContent('');
     setSelectedFormat('thread');
+    setSelectedOption(null);
+    setPostTitle('');
+    setPostBody('');
   };
 
   const handleClose = () => {
     setCreateHubOpen(false);
     resetState();
+  };
+
+  const handleOptionSelect = (option: CreateOption) => {
+    if (option === 'collab') {
+      toast.info('Brand Collaboration is coming soon!');
+      return;
+    }
+    setSelectedOption(option);
   };
 
   if (!isCreateHubOpen) return null;
@@ -159,7 +182,7 @@ export const CreateHub: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border/50">
             <div className="flex items-center gap-3">
-              {convertedContent && (
+              {(convertedContent || selectedOption) && (
                 <Button variant="ghost" size="icon" onClick={resetState} className="h-8 w-8">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
@@ -172,101 +195,233 @@ export const CreateHub: React.FC = () => {
           </div>
 
           <div className="p-6 overflow-y-auto h-[calc(100%-4rem)]">
-            {!convertedContent ? (
-              /* Drop Zone / URL Input */
+            {!convertedContent && !selectedOption ? (
+              /* Create Options */
               <div className="space-y-6">
                 <div className="text-center">
-                  <h3 className="text-xl font-medium mb-2">Drop a link</h3>
-                  <p className="text-muted-foreground">Paste a YouTube video, article, or social post to convert it into InvestorPaisa content</p>
+                  <h3 className="text-xl font-medium mb-2">What would you like to create?</h3>
+                  <p className="text-muted-foreground">Choose an option to get started</p>
                 </div>
 
-                <Card className="border-2 border-dashed border-border/50 hover:border-primary/50 transition-colors">
-                  <CardContent className="p-8 flex flex-col items-center gap-4">
-                    <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center">
-                      <Link2 className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="w-full max-w-md space-y-4">
-                      <Input
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="Paste URL here..."
-                        className="text-center bg-secondary/50"
-                      />
-                      <Button
-                        onClick={handleConvert}
-                        disabled={!url.trim() || isConverting}
-                        className="w-full gap-2 bg-primary text-primary-foreground"
-                      >
-                        {isConverting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Converting...
-                          </>
-                        ) : (
-                          <>
-                            <Link2 className="h-4 w-4" />
-                            Convert Link
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
                 <div className="grid grid-cols-2 gap-4">
-                  <Card className="p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                  <Card 
+                    className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => handleOptionSelect('question')}
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                        <FileText className="h-5 w-5" />
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <HelpCircle className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm">Thread</h4>
-                        <p className="text-xs text-muted-foreground">Multi-part post</p>
+                        <h4 className="font-medium text-sm">Ask Question</h4>
+                        <p className="text-xs text-muted-foreground">Get expert answers</p>
                       </div>
                     </div>
                   </Card>
-                  <Card className="p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                  
+                  <Card 
+                    className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => handleOptionSelect('opinion')}
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                        <LayoutGrid className="h-5 w-5" />
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <MessageSquare className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm">Carousel</h4>
-                        <p className="text-xs text-muted-foreground">Slide deck</p>
+                        <h4 className="font-medium text-sm">Share Opinion</h4>
+                        <p className="text-xs text-muted-foreground">Share your insights</p>
                       </div>
                     </div>
                   </Card>
-                  <Card className="p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                  
+                  <Card 
+                    className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => handleOptionSelect('community')}
+                  >
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                        <Lightbulb className="h-5 w-5" />
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Users className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm">Tip</h4>
-                        <p className="text-xs text-muted-foreground">Quick insight</p>
+                        <h4 className="font-medium text-sm">Create Community</h4>
+                        <p className="text-xs text-muted-foreground">Build your circle</p>
                       </div>
                     </div>
                   </Card>
-                  <Card className="p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                  
+                  <Card 
+                    className="p-4 cursor-pointer hover:border-muted transition-colors opacity-60"
+                    onClick={() => handleOptionSelect('collab')}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                        <Video className="h-5 w-5" />
+                        <Handshake className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm">Video Script</h4>
-                        <p className="text-xs text-muted-foreground">Short-form</p>
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          Brand Collaboration
+                          <Badge variant="secondary" className="text-[10px]">Soon</Badge>
+                        </h4>
+                        <p className="text-xs text-muted-foreground">Partner with brands</p>
                       </div>
                     </div>
+                  </Card>
+                </div>
+
+                {/* Link Conversion Section */}
+                <div className="pt-6 border-t border-border/50">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-medium">Or convert a link</h3>
+                    <p className="text-muted-foreground text-sm">Paste a YouTube video, article, or social post</p>
+                  </div>
+
+                  <Card className="border-2 border-dashed border-border/50 hover:border-primary/50 transition-colors">
+                    <CardContent className="p-6 flex flex-col items-center gap-4">
+                      <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
+                        <Link2 className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div className="w-full max-w-md space-y-4">
+                        <Input
+                          value={url}
+                          onChange={(e) => setUrl(e.target.value)}
+                          placeholder="Paste URL here..."
+                          className="text-center bg-secondary/50"
+                        />
+                        <Button
+                          onClick={handleConvert}
+                          disabled={!url.trim() || isConverting}
+                          className="w-full gap-2 bg-primary text-primary-foreground"
+                        >
+                          {isConverting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Converting...
+                            </>
+                          ) : (
+                            <>
+                              <Link2 className="h-4 w-4" />
+                              Convert Link
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
                   </Card>
                 </div>
               </div>
+            ) : selectedOption && !convertedContent ? (
+              /* Direct Post Form */
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-xl font-medium mb-2">
+                    {selectedOption === 'question' ? 'Ask a Question' : 
+                     selectedOption === 'opinion' ? 'Share Your Opinion' :
+                     'Create Community'}
+                  </h3>
+                </div>
+
+                {selectedOption === 'community' ? (
+                  <div className="space-y-4">
+                    <Input
+                      value={postTitle}
+                      onChange={(e) => setPostTitle(e.target.value)}
+                      placeholder="Community name"
+                      className="bg-secondary/50"
+                    />
+                    <Textarea
+                      value={postBody}
+                      onChange={(e) => setPostBody(e.target.value)}
+                      placeholder="What's this community about?"
+                      className="min-h-[150px] bg-secondary/50"
+                    />
+                    <Button
+                      onClick={async () => {
+                        if (!user) {
+                          navigate('/auth');
+                          return;
+                        }
+                        if (!postTitle.trim()) {
+                          toast.error('Please enter a community name');
+                          return;
+                        }
+                        setIsSubmitting(true);
+                        try {
+                          const { error } = await supabase.from('communities').insert({
+                            name: postTitle,
+                            objective: postBody,
+                            creator_id: user.id,
+                            is_closed: false,
+                          });
+                          if (error) throw error;
+                          toast.success('Community created!');
+                          setCreateHubOpen(false);
+                          resetState();
+                        } catch (err) {
+                          toast.error('Failed to create community');
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      disabled={!postTitle.trim() || isSubmitting}
+                      className="w-full gap-2 bg-primary text-primary-foreground h-12 rounded-xl"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Users className="h-4 w-4" />
+                          Create Community
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Input
+                      value={postTitle}
+                      onChange={(e) => setPostTitle(e.target.value)}
+                      placeholder={selectedOption === 'question' ? "What's your question?" : "Title"}
+                      className="bg-secondary/50"
+                    />
+                    <Textarea
+                      value={postBody}
+                      onChange={(e) => setPostBody(e.target.value)}
+                      placeholder={selectedOption === 'question' 
+                        ? "Add more context to help others answer..."
+                        : "Share your thoughts..."
+                      }
+                      className="min-h-[200px] bg-secondary/50"
+                    />
+                    <Button
+                      onClick={handlePublish}
+                      disabled={!postTitle.trim() || isSubmitting}
+                      className="w-full gap-2 bg-primary text-primary-foreground h-12 rounded-xl"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          Publish
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
-              /* Content Editor */
+              /* Content Editor (from link conversion) */
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-medium mb-2">{convertedContent.title}</h3>
+                  <h3 className="text-xl font-medium mb-2">{convertedContent?.title}</h3>
                   <div className="flex flex-wrap gap-2">
-                    {convertedContent.tags.map((tag) => (
+                    {convertedContent?.tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
                         {tag}
                       </Badge>
@@ -281,7 +436,7 @@ export const CreateHub: React.FC = () => {
                       Thread
                     </TabsTrigger>
                     <TabsTrigger value="carousel" className="gap-1">
-                      <LayoutGrid className="h-3 w-3" />
+                      <FileText className="h-3 w-3" />
                       Carousel
                     </TabsTrigger>
                     <TabsTrigger value="tip" className="gap-1">
@@ -289,7 +444,7 @@ export const CreateHub: React.FC = () => {
                       Tip
                     </TabsTrigger>
                     <TabsTrigger value="video" className="gap-1">
-                      <Video className="h-3 w-3" />
+                      <FileText className="h-3 w-3" />
                       Video
                     </TabsTrigger>
                   </TabsList>
