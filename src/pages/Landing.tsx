@@ -6,7 +6,7 @@ import { ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LandingFeedPreview } from '@/components/landing/LandingFeedPreview';
-import logoIcon from '@/assets/logo-icon.png';
+
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -73,12 +73,7 @@ const Landing: React.FC = () => {
       {/* Header */}
       <header className="relative z-20 px-6 py-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <img 
-              src={logoIcon} 
-              alt="InvestorPaisa" 
-              className="w-10 h-10 rounded-xl"
-            />
+          <div className="flex items-center">
             <span className="font-bold text-xl font-heading">
               Investor<span className="text-primary">Paisa</span>
             </span>
