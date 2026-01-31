@@ -30,12 +30,10 @@ export const register = async (name: string, email: string, password: string) =>
     // Track successful signup
     trackUserEvent.signup('email');
 
-    // Auto-login the user after registration (without waiting for email confirmation)
-    await login(email, password);
-
+    // Email verification required - do NOT auto-login
     showToast(
       "Registration successful",
-      "Your account has been created successfully"
+      "Please check your email to verify your account before logging in"
     );
 
     // Return user data with the correct role type
