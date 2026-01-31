@@ -224,7 +224,7 @@ const Profile = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => navigate('/edit-profile')}>
+                      <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Profile
                       </DropdownMenuItem>

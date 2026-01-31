@@ -13,7 +13,7 @@ import Auth from "@/pages/Auth";
 import Feed from "@/pages/Feed";
 import PostDetail from "@/pages/PostDetail";
 import Profile from "@/pages/Profile";
-import EditProfile from "@/pages/EditProfile";
+import ProfileEdit from "@/pages/ProfileEdit";
 import Inbox from "@/pages/Inbox";
 import MessagesNew from "@/pages/MessagesNew";
 import Notifications from "@/pages/Notifications";
@@ -77,13 +77,15 @@ function App() {
                     <Profile />
                   </MainLayout>
                 } />
-                <Route path="/edit-profile" element={
+                <Route path="/profile/edit" element={
                   <ProtectedRoute>
                     <MainLayout>
-                      <EditProfile />
+                      <ProfileEdit />
                     </MainLayout>
                   </ProtectedRoute>
                 } />
+                {/* Legacy edit-profile redirect */}
+                <Route path="/edit-profile" element={<Navigate to="/profile/edit" replace />} />
                 <Route path="/inbox" element={
                   <ProtectedRoute>
                     <MainLayout>
