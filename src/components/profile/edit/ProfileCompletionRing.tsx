@@ -36,11 +36,11 @@ export const ProfileCompletionRing: React.FC<ProfileCompletionRingProps> = ({
   const items: CompletionItem[] = [
     { label: 'Full Name', completed: !!(profile.full_name && profile.full_name.trim().length > 0), points: 10 },
     { label: 'Headline', completed: !!(profile.headline && profile.headline.trim().length > 0), points: 10 },
-    { label: 'Bio', completed: !!(profile.bio && profile.bio.trim().length > 0), points: 5 },
+    { label: 'Bio', completed: !!(profile.bio && profile.bio.trim().length > 0), points: 10 },
     { label: 'Location', completed: !!(profile.location && profile.location.trim().length > 0), points: 10 },
-    { label: 'Avatar', completed: !!(profile.avatar_url && profile.avatar_url.trim().length > 0), points: 10 },
+    // Avatar removed from scoring per user request
     { label: 'Interests', completed: !!(profile.interests && profile.interests.length > 0), points: 10 },
-    { label: 'Goals', completed: !!(profile.goals && profile.goals.length > 0), points: 10 },
+    { label: 'Goals', completed: !!(profile.goals && profile.goals.length > 0), points: 15 }, // Increased from 10
     { label: 'Mobile Verified', completed: !!profile.mobile_verified, points: 20 },
     { label: 'LinkedIn Connected', completed: !!profile.linkedin_verified, points: 15 },
   ];

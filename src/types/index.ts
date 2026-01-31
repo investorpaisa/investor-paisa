@@ -60,6 +60,7 @@ export interface EnhancedPost extends Post {
   category?: Category;
   isLiked?: boolean;
   isBookmarked?: boolean;
+  type?: 'insight' | 'question' | 'opinion' | 'link' | 'media' | 'poll' | 'news';
 }
 
 // Post related types
@@ -75,6 +76,7 @@ export interface Post {
   updated_at: string;
   like_count?: number;
   share_count?: number;
+  type?: 'insight' | 'question' | 'opinion' | 'link' | 'media' | 'poll' | 'news';
 }
 
 // Comment related types
