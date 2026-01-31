@@ -14,7 +14,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileTopBar } from '@/components/layout/MobileTopBar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
-import logoIcon from '@/assets/logo-icon.png';
+
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -41,7 +41,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   // Mobile layout
   if (isMobile) {
     return (
-      <div className="min-h-screen bg-background pb-20">
+      <div className="min-h-screen bg-background pb-16">
         <MobileTopBar />
         <main className="flex-1">
           {children || <Outlet />}
@@ -63,15 +63,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {/* Logo */}
             <div className="flex items-center space-x-4">
               <div 
-                className="flex items-center space-x-2 cursor-pointer"
+                className="flex items-center cursor-pointer"
                 onClick={() => navigate('/feed')}
               >
-                <img 
-                  src={logoIcon} 
-                  alt="InvestorPaisa" 
-                  className="h-9 w-9 rounded-xl"
-                />
-                <span className="text-xl font-bold font-heading hidden sm:block">
+                <span className="text-xl font-bold font-heading">
                   Investor<span className="text-primary">Paisa</span>
                 </span>
               </div>
