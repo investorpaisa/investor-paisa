@@ -1,11 +1,23 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 
-// CORS headers
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// CORS headers with restricted origins
+const getAllowedOrigin = (requestOrigin: string | null): string => {
+  const allowedOrigins = [
+    Deno.env.get('ALLOWED_ORIGIN') || 'https://investor-paisa.lovable.app',
+    'https://id-preview--14ca1bc6-3a3e-4389-94f1-5fe01fd1bbce.lovable.app',
+    'http://localhost:8080',
+    'http://localhost:5173'
+  ];
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return allowedOrigins[0];
 };
+
+const getCorsHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': getAllowedOrigin(origin),
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+});
 
 interface NewsArticle {
   id?: string;
@@ -19,18 +31,64 @@ interface NewsArticle {
   relevance_score: number;
 }
 
+// Input validation
+const validateLimit = (limit: unknown): number => {
+  const num = typeof limit === 'number' ? limit : parseInt(String(limit), 10);
+  if (isNaN(num) || num < 1) return 10;
+  return Math.min(num, 50); // Cap at 50 to prevent abuse
+};
+
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { limit = 10 } = await req.json();
-    
-    // Create Supabase client
+    // Authenticate the request
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create Supabase client for auth verification
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify the token
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await authClient.auth.getUser(token);
+    
+    if (claimsError || !claimsData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse and validate input
+    let rawLimit = 10;
+    try {
+      const body = await req.json();
+      rawLimit = body.limit;
+    } catch {
+      // Use default if no body
+    }
+    
+    const limit = validateLimit(rawLimit);
+    
+    // Create Supabase client with service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Get API key from environment variables
@@ -42,7 +100,7 @@ Deno.serve(async (req) => {
     
     console.log('Fetching financial trends from Alpha Vantage...');
     
-    // Fetch from Alpha Vantage
+    // Fetch from Alpha Vantage with validated limit
     const alphaVantageUrl = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=finance,economy&sort=RELEVANCE&limit=${limit}&apikey=${ALPHA_VANTAGE_API_KEY}`;
     const response = await fetch(alphaVantageUrl);
     const data = await response.json();
@@ -95,17 +153,16 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error('Error fetching financial trends:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: errorMessage
+        error: 'An error occurred while fetching trends'
       }),
       { 
         status: 500,
         headers: { 
-          ...corsHeaders, 
+          ...getCorsHeaders(req.headers.get('Origin')), 
           'Content-Type': 'application/json' 
         } 
       }
@@ -119,21 +176,20 @@ function calculateRelevanceScore(article: any): number {
   
   // Factor 1: Overall sentiment
   if (article.overall_sentiment_score) {
-    // Absolute value of sentiment matters more than direction
     score += Math.abs(article.overall_sentiment_score) * 10;
   }
   
-  // Factor 2: Recency (newer articles get higher scores)
+  // Factor 2: Recency
   const publishedDate = new Date(article.time_published);
   const now = new Date();
   const hoursSincePublished = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60);
   if (hoursSincePublished < 24) {
-    score += 20; // Articles less than a day old
+    score += 20;
   } else if (hoursSincePublished < 48) {
-    score += 10; // Articles less than two days old
+    score += 10;
   }
   
-  // Factor 3: Source reputation (simplified)
+  // Factor 3: Source reputation
   const highQualitySources = ['Bloomberg', 'Reuters', 'Financial Times', 'Wall Street Journal', 'CNBC'];
   if (highQualitySources.includes(article.source)) {
     score += 15;
@@ -144,5 +200,5 @@ function calculateRelevanceScore(article: any): number {
     score += Math.min(article.ticker_sentiment.length * 2, 10);
   }
   
-  return Math.min(score, 100); // Cap at 100
+  return Math.min(score, 100);
 }
