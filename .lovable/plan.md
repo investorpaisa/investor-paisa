@@ -1,606 +1,397 @@
 
-# InvestorPaisa Targeted Product Implementation Plan
+# InvestorPaisa Comprehensive Implementation Plan
 
-## Executive Summary
-This plan implements 12 targeted changes to the InvestorPaisa platform, focusing on mobile UI optimization, removing the square IP logo, fixing Messages/Notifications/Profile loading issues, removing duplicate navigation, implementing role-aware composer, gamified profiles, closed communities, mass messaging, and Markets page restructuring.
+## Overview
+This plan addresses 5 major areas of work:
+1. Fix Pages (Profile, Notifications, Messages) displaying properly
+2. Mobile navigation fixes (Markets distortion, swipe gestures, sticky tabs)
+3. Role-specific Create CTA with tier-aware permissions
+4. Animated gradient border on Create icon (Gemini-style)
+5. Markets page mobile optimization with index-specific data
 
 ---
 
-## CHANGE 0: Mobile UI Spacing Optimization
+## PHASE 1: Page Loading & Display Fixes
 
-### Problem
-Mobile UI has excessive side spacing, reducing content visibility and discovery. Widgets appear narrow.
+### 1.1 Profile Page
+**Current State:** Profile page has proper loading/error states and queries but may not load due to user not being logged in or profile query issues.
 
-### Solution
+**Fix Required:**
+- The page works correctly when a user is logged in
+- Add fallback handling for missing profile data fields
+- Ensure the profile completeness score displays properly
 
 **Files to Modify:**
-- `src/layouts/MainLayout.tsx`
-- `src/components/layout/MobileTopBar.tsx`
-- `src/components/layout/MobileBottomNav.tsx`
-- `src/pages/Feed.tsx`
+- `src/pages/Profile.tsx` - Add null safety for new tier fields
 
-**Frontend Changes:**
+### 1.2 Notifications Page
+**Current State:** Already has proper skeleton, empty, and error states. Uses `useNotifications` hook.
 
-1. **MobileTopBar.tsx** - Reduce horizontal padding from `px-4` to `px-2`, increase widget heights
-2. **Feed.tsx** - Reduce container padding from `px-4` to `px-2` on mobile, make tabs full-width
-3. **MainLayout.tsx** - Ensure mobile layout uses minimal side padding
-4. **Post cards** - Increase card sizes, reduce margins between cards
+**Issue:** If user is not logged in, query is disabled. Page may appear stuck in loading if auth context hasn't resolved.
 
-**CSS Changes:**
+**Fix Required:**
+- Add authentication check with redirect to auth
+- Improve mobile responsive styling
+- Reduce font sizes and padding for mobile
+
+**Files to Modify:**
+- `src/pages/Notifications.tsx` - Add auth guard, mobile optimization
+
+### 1.3 Messages/Inbox Page
+**Current State:** `Inbox.tsx` was rewritten with `useConversations` hook but may show infinite loading if no conversations exist.
+
+**Issue:** Empty state exists but loading state may persist if auth hasn't resolved.
+
+**Fix Required:**
+- Add explicit auth check with redirect
+- Ensure skeleton shows only while query is pending
+- Verify the query works with empty conversation list
+
+**Files to Modify:**
+- `src/pages/Inbox.tsx` - Add auth guard, verify loading states
+
+---
+
+## PHASE 2: Mobile Navigation Fixes
+
+### 2.1 Markets Page Distortion Fix
+**Problem:** Clicking Markets from mobile bottom nav shows distorted layout.
+
+**Root Cause Analysis:**
+- Markets page uses large container padding and fixed-width elements
+- Font sizes too large for mobile
+- Grid layouts don't scale properly
+
+**Solution:**
 ```tsx
-// Feed.tsx - Mobile responsive container
-<div className="container max-w-2xl mx-auto py-4 px-2 sm:px-4 md:py-6">
+// Markets.tsx - Mobile responsive adjustments
+<div className="container mx-auto py-4 px-2 sm:px-4 max-w-7xl">
+  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+    <div>
+      <h1 className="text-xl sm:text-3xl font-bold flex items-center gap-2">
+        Markets
+      </h1>
+      <p className="text-muted-foreground text-xs sm:text-sm">Real-time data</p>
+    </div>
+  </div>
+  
+  {/* Hide search on mobile, reduce TabsList width */}
+  <TabsList className="grid w-full sm:max-w-md grid-cols-3 text-xs sm:text-sm">
 ```
 
-**Pulse Tab Logic:**
-- Current "pulse" tab shows all approved posts ordered by created_at
-- Update to show trending/open questions from across the platform:
-```typescript
-if (activeFeedTab === 'pulse') {
-  query = query.eq('type', 'question').order('created_at', { ascending: false });
+**Files to Modify:**
+- `src/pages/Markets.tsx` - Complete mobile-first redesign
+
+### 2.2 Swipe Gestures for Feed Tabs
+**Problem:** Cannot swipe left/right between Pulse, Trending, Following tabs.
+
+**Solution:** Use `framer-motion` drag gestures on the tab content.
+
+**Implementation:**
+```tsx
+// Feed.tsx - Add swipe gesture handling
+const tabs = ['pulse', 'trending', 'following'];
+const currentIndex = tabs.indexOf(activeFeedTab);
+
+const handleDragEnd = (event, info) => {
+  if (info.offset.x < -50 && currentIndex < tabs.length - 1) {
+    setActiveFeedTab(tabs[currentIndex + 1]);
+  } else if (info.offset.x > 50 && currentIndex > 0) {
+    setActiveFeedTab(tabs[currentIndex - 1]);
+  }
+};
+
+<motion.div
+  drag="x"
+  dragConstraints={{ left: 0, right: 0 }}
+  onDragEnd={handleDragEnd}
+>
+  {/* Tab content */}
+</motion.div>
+```
+
+**Files to Modify:**
+- `src/pages/Feed.tsx` - Add swipe gesture handlers
+
+### 2.3 Sticky Tab Navigation
+**Problem:** Pulse/Trending/Following tabs should stick when scrolling up.
+
+**Solution:** Make the TabsList sticky with a higher z-index.
+
+```tsx
+// Feed.tsx
+<div className="sticky top-12 z-30 bg-background/95 backdrop-blur-sm pt-2 pb-2">
+  <TabsList className="grid grid-cols-3 w-full h-10 mb-0 ...">
+```
+
+**Files to Modify:**
+- `src/pages/Feed.tsx` - Make tab bar sticky
+
+---
+
+## PHASE 3: Role-Aware Create CTA
+
+### 3.1 Create Button Behavior by Tier
+**Current State:** Create button always opens CreateHub regardless of user tier.
+
+**Required Behavior:**
+| Tier | CTA Label | Action |
+|------|-----------|--------|
+| Guest | "Sign in to Ask" | Navigate to /auth |
+| Unverified | "Verify to Ask" | Open verification modal |
+| Verified+ | "Create" | Open CreateHub |
+
+**Implementation:**
+
+**New Component: `RoleAwareCreateButton.tsx`**
+```tsx
+export const RoleAwareCreateButton: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
+  const { tier, permissions, isGuest, isUnverified } = useUserTier();
+  const { setCreateHubOpen } = useUIStore();
+  const navigate = useNavigate();
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+
+  const handleClick = () => {
+    if (isGuest) {
+      navigate('/auth');
+      return;
+    }
+    if (isUnverified) {
+      setShowVerifyModal(true);
+      return;
+    }
+    setCreateHubOpen(true);
+  };
+
+  const getLabel = () => {
+    if (isGuest) return 'Sign in';
+    if (isUnverified) return 'Verify';
+    return 'Create';
+  };
+
+  // Mobile center button or desktop floating button
+};
+```
+
+**New Component: `VerificationModal.tsx`**
+```tsx
+export const VerificationModal: React.FC = () => {
+  // Modal with options:
+  // - Verify via Mobile OTP
+  // - Connect LinkedIn
+  // - Why verification matters (benefits)
+};
+```
+
+**Files to Create:**
+- `src/components/create/RoleAwareCreateButton.tsx`
+- `src/components/auth/VerificationModal.tsx`
+
+**Files to Modify:**
+- `src/layouts/MainLayout.tsx` - Replace floating Create button with RoleAwareCreateButton
+- `src/components/layout/MobileBottomNav.tsx` - Replace center Create button with RoleAwareCreateButton
+- `src/components/create/CreateHub.tsx` - Add role-based content options
+
+### 3.2 CreateHub Role-Aware Options
+**Verified users:** Thread, Tip only
+**Influencer/Expert:** + Carousel, URL Summary, Video Script
+
+---
+
+## PHASE 4: Animated Gradient Create Button
+
+### 4.1 Gemini-Style Animated Border
+**Requirement:** Create icon should have a moving gradient border animation.
+
+**CSS Implementation:**
+```css
+/* index.css */
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.create-button-gradient {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary)),
+    hsl(174 100% 50%),
+    hsl(142 76% 50%),
+    hsl(var(--primary))
+  );
+  background-size: 300% 100%;
+  animation: gradient-rotate 3s ease infinite;
+}
+
+.create-button-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: hsl(var(--background));
+  border-radius: inherit;
+}
+
+.create-button-gradient > * {
+  position: relative;
+  z-index: 1;
 }
 ```
 
----
-
-## CHANGE 1: Remove Square IP Logo
-
-### Problem
-Square IP logo appears in desktop/mobile top bars and Markets page header.
-
-### Solution
-
-**Files to Modify:**
-- `src/layouts/MainLayout.tsx` (lines 69-73)
-- `src/components/layout/MobileTopBar.tsx` (lines 26-29)
-- `src/pages/Markets.tsx`
-
-**Changes:**
-
-1. **MainLayout.tsx** - Remove logo image, keep only text wordmark:
+**Component Update:**
 ```tsx
-<div 
-  className="flex items-center space-x-2 cursor-pointer"
-  onClick={() => navigate('/feed')}
->
-  <span className="text-xl font-bold font-heading">
-    Investor<span className="text-primary">Paisa</span>
+// RoleAwareCreateButton for desktop
+<button className="create-button-gradient h-14 w-14 rounded-full shadow-lg">
+  <span className="flex items-center justify-center h-[calc(100%-4px)] w-[calc(100%-4px)] bg-background rounded-full m-[2px]">
+    <Plus className="h-6 w-6 text-primary" />
   </span>
-</div>
+</button>
 ```
-
-2. **MobileTopBar.tsx** - Same change, remove `<img>` tag, keep text logo
-
-3. **Markets.tsx** - Remove MarketNav component entirely (it has duplicate nav) or remove any logo reference within it
-
----
-
-## CHANGE 2: Messages & Notifications Loading Fix
-
-### Root Cause Analysis
-
-**Current State:**
-- `src/pages/Inbox.tsx` - Shows only placeholder "coming soon" message
-- `src/pages/MessagesNew.tsx` - Has search functionality but no conversation list
-- `src/pages/Notifications.tsx` - Already has proper loading/error/empty states using `useNotifications` hook
-
-**Backend Tables Exist:**
-- `conversations` - id, is_group, name, created_at, updated_at
-- `conversation_participants` - conversation_id, user_id, last_read_at, is_muted
-- `messages` - id, conversation_id, sender_id, body, status, created_at
-- `notifications` - id, user_id, type, title, body, actor_id, is_read, created_at
-
-**Issues:**
-1. `Inbox.tsx` doesn't query conversations - it's just a placeholder
-2. No hooks exist for fetching conversations/messages
-3. Notifications hook exists and works correctly
-
-### Solution
-
-**New Files to Create:**
-- `src/hooks/useConversations.ts`
-- `src/hooks/useMessages.ts`
 
 **Files to Modify:**
-- `src/pages/Inbox.tsx` - Complete rewrite to show conversation list
-
-**useConversations.ts Hook:**
-```typescript
-export const useConversations = () => {
-  const { user } = useAuth();
-  
-  return useQuery({
-    queryKey: ['conversations', user?.id],
-    queryFn: async () => {
-      // Get conversation IDs user participates in
-      const { data: participations } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', user.id);
-      
-      // Get conversations with last message
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select('*')
-        .in('id', participations.map(p => p.conversation_id));
-      
-      return conversations || [];
-    },
-    enabled: !!user?.id,
-  });
-};
-```
-
-**Inbox.tsx Rewrite:**
-- Add skeleton loading state
-- Add empty state with "No conversations yet"
-- Add error state with retry button
-- List conversations with last message preview
-- Navigate to individual conversation on click
+- `src/index.css` - Add gradient animation keyframes
+- `src/components/create/RoleAwareCreateButton.tsx` - Apply gradient class
 
 ---
 
-## CHANGE 3: Remove Markets Page Duplicate Nav
+## PHASE 5: Markets Page Mobile Optimization
 
-### Problem
-Markets page has its own `MarketNav` component (lines 181-229) in addition to global navigation.
+### 5.1 Mobile-First Layout
+**Problems:**
+- Font sizes too large
+- Widgets distorted
+- Missing key index data (Sensex, Nifty, S&P 500, NASDAQ, Bitcoin, Ethereum)
 
-### Solution
+**Solution - Complete Redesign:**
 
-**File to Modify:**
-- `src/pages/Markets.tsx`
-
-**Changes:**
-1. Remove the `MarketNav` component definition (lines 181-229)
-2. Remove `<MarketNav />` from render (line 274)
-3. The page will now use only the global navigation from `MainLayout`
-
----
-
-## CHANGE 4: Profile Page Loading Fix
-
-### Current State
-`src/pages/Profile.tsx` already has:
-- Loading skeleton (lines 118-135)
-- Error state (lines 137-150)
-- Proper query with `useQuery`
-
-**Potential Issues:**
-1. Check if RLS policies allow profile reads
-2. Ensure auth token is attached
-
-### Solution
-
-**RLS Check:**
-```sql
--- Verify SELECT policy exists for profiles
-SELECT * FROM pg_policies WHERE tablename = 'profiles';
-```
-
-**Frontend Enhancement (Profile.tsx):**
-- Ensure redirect to `/auth` uses correct path (currently correct)
-- Add console logging for debugging
-
----
-
-## CHANGE 5: Revamp Floating Ask Question (Role-Aware)
-
-### New User Tier System
-
-**Database Changes:**
-
-Create new enum for user tiers:
-```sql
-CREATE TYPE public.user_tier AS ENUM (
-  'guest',
-  'unverified_user',
-  'verified_user',
-  'influencer',
-  'expert'
-);
-```
-
-Add to profiles table:
-```sql
-ALTER TABLE public.profiles 
-ADD COLUMN tier user_tier DEFAULT 'unverified_user',
-ADD COLUMN tier_verified_at TIMESTAMPTZ,
-ADD COLUMN streak_days INTEGER DEFAULT 0,
-ADD COLUMN upvote_rate DECIMAL DEFAULT 0,
-ADD COLUMN mobile_verified BOOLEAN DEFAULT false,
-ADD COLUMN linkedin_verified BOOLEAN DEFAULT false;
-```
-
-### Tier Progression Rules
-
-| Tier | Requirement |
-|------|-------------|
-| guest | Not logged in |
-| unverified_user | Email signup only |
-| verified_user | Mobile OTP OR LinkedIn OAuth |
-| influencer | 50+ day streak AND 70%+ upvote rate |
-| expert | Certification OR 10k+ followers OR 100+ day streak |
-
-### Permissions Matrix
-
-| Action | UV | Verified | Influencer | Expert |
-|--------|-----|----------|------------|--------|
-| Like | Yes | Yes | Yes | Yes |
-| Share | Yes | Yes | Yes | Yes |
-| Comment | No | Yes | Yes | Yes |
-| Ask Question | No | Yes | Yes | Yes |
-| Post Opinion | No | Yes | Yes | Yes |
-| AI Assist | No | Yes | Yes | Yes |
-| Carousel | No | No | Yes | Yes |
-| URL Summary | No | No | Yes | Yes |
-| Profile Promotion | No | No | Yes | Yes |
-| Paid Listing | No | No | No | Yes |
-| Mass Outreach | No | No | No | Yes |
-
-### Frontend Changes
-
-**New Files:**
-- `src/hooks/useUserTier.ts`
-- `src/components/auth/VerificationModal.tsx`
-- `src/components/create/RoleAwareComposer.tsx`
-
-**useUserTier.ts:**
-```typescript
-export const useUserTier = () => {
-  const { user, profile } = useAuth();
-  
-  // Compute tier from profile data
-  const tier = useMemo(() => {
-    if (!user) return 'guest';
-    if (!profile?.mobile_verified && !profile?.linkedin_verified) return 'unverified_user';
-    if (profile?.streak_days >= 50 && profile?.upvote_rate >= 0.7) return 'influencer';
-    // ... expert logic
-    return 'verified_user';
-  }, [user, profile]);
-  
-  return { tier, canComment, canPost, canAsk, ... };
-};
-```
-
-**Floating CTA Behavior:**
-
-1. **Guest/Unverified:** Show "Verify to Ask" button, opens VerificationModal
-2. **Verified+:** Show "Ask Question" button, opens inline composer
-
-**RoleAwareComposer.tsx:**
-- For verified users: Single input with AI rewrite + tag suggestions
-- For influencer/expert: Additional toggle buttons (Question, Opinion, Carousel, URL Summary)
-
----
-
-## CHANGE 6: Gamified Profile Enrichment
-
-### Profile Completeness Score
-
-**Database Changes:**
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN profile_completeness_score INTEGER DEFAULT 0;
-```
-
-**Scoring Logic (computed on update):**
-
-| Field | Points |
-|-------|--------|
-| full_name | 10 |
-| bio | 5 |
-| headline | 10 |
-| location | 10 |
-| avatar_url | 10 |
-| interests (array) | 10 |
-| goals (array) | 10 |
-| mobile_verified | 20 |
-| email_verified (work email) | 15 |
-| certifications | 20 |
-
-**Database Trigger:**
-```sql
-CREATE OR REPLACE FUNCTION public.compute_profile_completeness()
-RETURNS trigger AS $$
-DECLARE
-  score INTEGER := 0;
-BEGIN
-  IF NEW.full_name IS NOT NULL THEN score := score + 10; END IF;
-  IF NEW.bio IS NOT NULL THEN score := score + 5; END IF;
-  IF NEW.headline IS NOT NULL THEN score := score + 10; END IF;
-  -- ... continue for all fields
-  NEW.profile_completeness_score := score;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-**Frontend Changes:**
-
-**Files to Modify:**
-- `src/pages/Profile.tsx`
-
-Add profile completeness ring:
 ```tsx
-<div className="flex items-center gap-4">
-  <ProgressRing value={profile.profile_completeness_score} max={100} />
-  <div>
-    <p className="text-sm font-medium">{profile.profile_completeness_score}% Complete</p>
-    <Button variant="link" size="sm">Complete your profile</Button>
-  </div>
-</div>
+// Markets.tsx - New structure
+const INDIAN_INDICES = [
+  { symbol: "^NSEI", name: "Nifty 50" },
+  { symbol: "^BSESN", name: "Sensex" },
+];
+const GLOBAL_INDICES = [
+  { symbol: "SPY", name: "S&P 500" },
+  { symbol: "QQQ", name: "NASDAQ" },
+];
+const CRYPTO = [
+  { symbol: "BTC/USD", name: "Bitcoin" },
+  { symbol: "ETH/USD", name: "Ethereum" },
+];
+
+// Remove Forex tab - keep only: Overview, Indian, Global, Crypto
+<TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 text-xs sm:text-sm h-9">
+  <TabsTrigger value="overview">Overview</TabsTrigger>
+  <TabsTrigger value="indian">India</TabsTrigger>
+  <TabsTrigger value="global">Global</TabsTrigger>
+  <TabsTrigger value="crypto">Crypto</TabsTrigger>
+</TabsList>
 ```
 
----
-
-## CHANGE 7: Closed Communities
-
-### Database Schema
-
-```sql
--- Communities table
-CREATE TABLE public.communities (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  objective TEXT,
-  logo_url TEXT,
-  is_closed BOOLEAN DEFAULT false,
-  creator_id UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  member_count INTEGER DEFAULT 0
-);
-
--- Community members
-CREATE TABLE public.community_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  community_id UUID REFERENCES public.communities(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'member')),
-  joined_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(community_id, user_id)
-);
-
--- RLS Policies
-ALTER TABLE public.communities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.community_members ENABLE ROW LEVEL SECURITY;
-
--- Anyone can view open communities
-CREATE POLICY "View open communities" ON public.communities
-  FOR SELECT USING (is_closed = false OR id IN (
-    SELECT community_id FROM public.community_members WHERE user_id = auth.uid()
-  ));
-
--- Members can view closed communities they belong to
-CREATE POLICY "Members can view their communities" ON public.community_members
-  FOR SELECT USING (user_id = auth.uid());
-```
-
-**Permission Rules:**
-- Verified users can create closed communities
-- Influencer/Expert can create open OR closed communities
-- Oldest member retains admin if creator downgrades
-
-**Frontend Components:**
-- `src/components/communities/CreateCommunityModal.tsx`
-- `src/components/communities/CommunityCard.tsx`
-- `src/pages/Community.tsx`
-
----
-
-## CHANGE 8: 1-1 + Mass Outreach in Messages
-
-### Database Changes
-
-Add type to conversations:
-```sql
-ALTER TABLE public.conversations
-ADD COLUMN type TEXT DEFAULT 'direct' CHECK (type IN ('direct', 'mass'));
-```
-
-Add receiver_id for mass messages:
-```sql
-ALTER TABLE public.messages
-ADD COLUMN receiver_id UUID REFERENCES auth.users(id);
-```
-
-### Mass Message Logic
-
-For experts only:
-1. Create one conversation per recipient
-2. Mark conversation type as 'mass'
-3. Display "Mass" badge in Messages list
-
-**API Endpoint (Edge Function):**
-```typescript
-// POST /messages/mass
-// Body: { recipient_ids: string[], body: string }
-```
-
----
-
-## CHANGE 9: Notifications Content
-
-### Notification Type Updates
-
-Current enum: `like | comment | follow | mention | answer | system | live_session | badge`
-
-**Add new types:**
-```sql
-ALTER TYPE public.notification_type ADD VALUE 'message';
-ALTER TYPE public.notification_type ADD VALUE 'community_post';
-ALTER TYPE public.notification_type ADD VALUE 'tier_change';
-ALTER TYPE public.notification_type ADD VALUE 'fact_check';
-ALTER TYPE public.notification_type ADD VALUE 'removal';
-```
-
-**Database Triggers for Notifications:**
-
-1. New message notification
-2. Mention notification (already exists)
-3. Community post notification
-4. Tier change notification
-5. Post fact-check notification
-6. Post removal notification
-
----
-
-## CHANGE 10: Trending Page + News Ingestion
-
-### Current State
-- `news_articles` table exists with category, source, summary, etc.
-- `supabase/functions/gemini-article-crawler/` exists for crawling
-- Edge functions for fetching financial news exist
-
-### Solution
-
-**News Cron Job:**
-Use existing `fetch-financial-news-cron` function, schedule every 15 minutes:
-```sql
-SELECT cron.schedule(
-  'fetch-news-every-15min',
-  '*/15 * * * *',
-  $$
-  SELECT net.http_post(
-    url:='https://byipbdumfzuiykkeqezv.supabase.co/functions/v1/gemini-article-crawler',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer ANON_KEY"}'::jsonb
+### 5.2 Compact Quote Cards
+```tsx
+function QuoteCardCompact({ symbol, name, price, change, percentChange }) {
+  return (
+    <Card className="p-3 border-l-2" style={{ borderLeftColor: change >= 0 ? 'green' : 'red' }}>
+      <div className="flex justify-between items-center">
+        <div>
+          <span className="font-semibold text-sm">{name}</span>
+          <span className="text-xs text-muted-foreground ml-1">{symbol}</span>
+        </div>
+        <div className="text-right">
+          <div className="font-bold text-sm">{formatPrice(price)}</div>
+          <div className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
+          </div>
+        </div>
+      </div>
+    </Card>
   );
-  $$
-);
+}
 ```
 
-**Trending News Endpoint:**
-Already available via `gemini-article-crawler` function.
-
-**Frontend:**
-Add news section to Markets page or Trending tab in Feed.
-
----
-
-## CHANGE 11: Markets Page Structure (Moneycontrol Style)
-
-### Current State
-Markets page (`src/pages/Markets.tsx`) already has:
-- Tabs: India, Global, Forex, Crypto
-- Quote cards with prices
-- Top gainers/losers
-
-### Enhancement
-
-**New Tab Structure:**
-```
-Overview | Indian | Global | Commodities | Currencies | Crypto
-```
-
-**Overview Tab Content:**
-- Top 4 index cards (NIFTY, SENSEX, SPY, NASDAQ)
-- Market movers section
-- Top 5 gainers/losers
-- Latest news headlines from `news_articles`
-
-**Stock Detail Page Tabs:**
-```
-Overview | Chart | Fundamentals | News | AI Insight
-```
+### 5.3 Overview Tab
+**Show:**
+- Top 4 indices (Nifty, Sensex, S&P, NASDAQ) as featured cards
+- Market status indicator
+- Top 3 gainers/losers
+- Bitcoin & Ethereum mini cards
 
 **Files to Modify:**
-- `src/pages/Markets.tsx`
-- `src/pages/StockDetail.tsx`
+- `src/pages/Markets.tsx` - Complete rewrite with mobile-first approach
 
 ---
 
-## Implementation Priority
+## Implementation Sequence
 
-### Phase 1 (Critical Fixes)
-1. CHANGE 1: Remove square logo
-2. CHANGE 3: Remove Markets duplicate nav
-3. CHANGE 2: Fix Messages loading
-4. CHANGE 4: Verify Profile loading
+### Step 1: Critical Fixes
+1. Fix auth guards on Profile, Notifications, Messages pages
+2. Apply mobile responsive styling to all three pages
 
-### Phase 2 (Mobile UX)
-5. CHANGE 0: Mobile spacing optimization
+### Step 2: Mobile Navigation
+1. Fix Markets page mobile layout
+2. Add swipe gestures to Feed tabs
+3. Make Feed tab bar sticky
 
-### Phase 3 (Core Features)
-6. CHANGE 5: Role-aware composer
-7. CHANGE 6: Gamified profiles
-8. CHANGE 9: Notification types
+### Step 3: Role-Aware System
+1. Create RoleAwareCreateButton component
+2. Create VerificationModal component
+3. Integrate into MainLayout and MobileBottomNav
 
-### Phase 4 (Communities & Messaging)
-9. CHANGE 7: Closed communities
-10. CHANGE 8: Mass messaging
+### Step 4: Visual Polish
+1. Add Gemini-style gradient animation to Create button
+2. Final mobile UI consistency pass
 
-### Phase 5 (Content & Markets)
-11. CHANGE 10: News ingestion
-12. CHANGE 11: Markets restructure
-
----
-
-## Database Migrations Required
-
-```sql
--- 1. User tier enum
-CREATE TYPE public.user_tier AS ENUM ('guest', 'unverified_user', 'verified_user', 'influencer', 'expert');
-
--- 2. Profile tier fields
-ALTER TABLE public.profiles 
-ADD COLUMN tier public.user_tier DEFAULT 'unverified_user',
-ADD COLUMN streak_days INTEGER DEFAULT 0,
-ADD COLUMN upvote_rate DECIMAL DEFAULT 0,
-ADD COLUMN mobile_verified BOOLEAN DEFAULT false,
-ADD COLUMN linkedin_verified BOOLEAN DEFAULT false,
-ADD COLUMN profile_completeness_score INTEGER DEFAULT 0;
-
--- 3. Communities
-CREATE TABLE public.communities (...);
-CREATE TABLE public.community_members (...);
-
--- 4. Conversation type
-ALTER TABLE public.conversations ADD COLUMN type TEXT DEFAULT 'direct';
-
--- 5. Notification types
-ALTER TYPE public.notification_type ADD VALUE 'message';
-ALTER TYPE public.notification_type ADD VALUE 'community_post';
-ALTER TYPE public.notification_type ADD VALUE 'tier_change';
-```
+### Step 5: Markets Enhancement
+1. Restructure Markets tabs (remove Forex)
+2. Add Overview tab with key indices
+3. Optimize all cards for mobile
 
 ---
 
 ## Files Summary
 
-### New Files to Create
-- `src/hooks/useConversations.ts`
-- `src/hooks/useMessages.ts`
-- `src/hooks/useUserTier.ts`
-- `src/components/auth/VerificationModal.tsx`
-- `src/components/create/RoleAwareComposer.tsx`
-- `src/components/communities/CreateCommunityModal.tsx`
-- `src/components/communities/CommunityCard.tsx`
-- `src/pages/Community.tsx`
+### Files to CREATE:
+1. `src/components/create/RoleAwareCreateButton.tsx`
+2. `src/components/auth/VerificationModal.tsx`
 
-### Files to Modify
-- `src/layouts/MainLayout.tsx`
-- `src/components/layout/MobileTopBar.tsx`
-- `src/components/layout/MobileBottomNav.tsx`
-- `src/pages/Feed.tsx`
-- `src/pages/Inbox.tsx`
-- `src/pages/Profile.tsx`
-- `src/pages/Markets.tsx`
-- `src/pages/StockDetail.tsx`
-- `src/components/create/CreateHub.tsx`
-- `src/stores/uiStore.ts`
+### Files to MODIFY:
+1. `src/pages/Profile.tsx` - Add null safety for tier fields
+2. `src/pages/Notifications.tsx` - Auth guard + mobile optimization
+3. `src/pages/Inbox.tsx` - Auth guard verification
+4. `src/pages/Feed.tsx` - Swipe gestures + sticky tabs
+5. `src/pages/Markets.tsx` - Complete mobile-first redesign
+6. `src/layouts/MainLayout.tsx` - Use RoleAwareCreateButton
+7. `src/components/layout/MobileBottomNav.tsx` - Use RoleAwareCreateButton
+8. `src/components/create/CreateHub.tsx` - Role-based options
+9. `src/index.css` - Add gradient animation keyframes
 
 ---
 
-## Regression Test Checklist
+## Mobile Styling Guidelines
 
-After implementation, verify:
-- [ ] Feed loads (all 3 tabs)
-- [ ] Posting works
-- [ ] Market page loads (single nav only)
-- [ ] Profile page loads
-- [ ] Messages page loads (with conversations)
-- [ ] Notifications page loads
-- [ ] Like/Save interactions work
-- [ ] Search typeahead works
-- [ ] Logout works from Profile
-- [ ] Mobile navigation works
-- [ ] No square logo visible anywhere
+All pages should follow:
+- **Container padding:** `px-2 sm:px-4`
+- **Font sizes:** `text-xs sm:text-sm` for body, `text-lg sm:text-2xl` for headings
+- **Card padding:** `p-3 sm:p-4`
+- **Button heights:** `h-9 sm:h-10`
+- **Icon sizes:** `h-4 w-4 sm:h-5 sm:w-5`
+- **Grid gaps:** `gap-2 sm:gap-4`
+
+---
+
+## Testing Checklist
+
+After implementation:
+- [ ] Profile page loads for logged-in user
+- [ ] Notifications page loads (shows empty state if no notifications)
+- [ ] Messages page loads (shows empty state if no conversations)
+- [ ] Markets page displays correctly on mobile (no distortion)
+- [ ] Can swipe left/right between Pulse/Trending/Following
+- [ ] Tab bar sticks when scrolling
+- [ ] Create button shows correct label based on user tier
+- [ ] Create button has animated gradient border
+- [ ] Markets shows Sensex, Nifty, S&P 500, NASDAQ data
+- [ ] Crypto tab shows Bitcoin & Ethereum
+
