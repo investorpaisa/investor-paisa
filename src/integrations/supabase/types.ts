@@ -1453,6 +1453,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reposts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       search_history: {
@@ -1522,6 +1529,13 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -1738,7 +1752,105 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_public: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          cover_url: string | null
+          created_at: string | null
+          followers_count: number | null
+          following_count: number | null
+          full_name: string | null
+          goals: string[] | null
+          headline: string | null
+          id: string | null
+          interests: string[] | null
+          is_expert: boolean | null
+          is_premium: boolean | null
+          is_verified: boolean | null
+          language: string | null
+          linkedin_id: string | null
+          linkedin_verified: boolean | null
+          location: string | null
+          mobile_verified: boolean | null
+          onboarding_completed: boolean | null
+          posts_count: number | null
+          profile_completeness_score: number | null
+          streak_days: number | null
+          tier: Database["public"]["Enums"]["user_tier"] | null
+          trust_level: Database["public"]["Enums"]["trust_level"] | null
+          trust_score: number | null
+          updated_at: string | null
+          upvote_rate: number | null
+          username: string | null
+          website: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          full_name?: string | null
+          goals?: string[] | null
+          headline?: string | null
+          id?: string | null
+          interests?: string[] | null
+          is_expert?: boolean | null
+          is_premium?: boolean | null
+          is_verified?: boolean | null
+          language?: string | null
+          linkedin_id?: string | null
+          linkedin_verified?: boolean | null
+          location?: string | null
+          mobile_verified?: boolean | null
+          onboarding_completed?: boolean | null
+          posts_count?: number | null
+          profile_completeness_score?: number | null
+          streak_days?: number | null
+          tier?: Database["public"]["Enums"]["user_tier"] | null
+          trust_level?: Database["public"]["Enums"]["trust_level"] | null
+          trust_score?: number | null
+          updated_at?: string | null
+          upvote_rate?: number | null
+          username?: string | null
+          website?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          full_name?: string | null
+          goals?: string[] | null
+          headline?: string | null
+          id?: string | null
+          interests?: string[] | null
+          is_expert?: boolean | null
+          is_premium?: boolean | null
+          is_verified?: boolean | null
+          language?: string | null
+          linkedin_id?: string | null
+          linkedin_verified?: boolean | null
+          location?: string | null
+          mobile_verified?: boolean | null
+          onboarding_completed?: boolean | null
+          posts_count?: number | null
+          profile_completeness_score?: number | null
+          streak_days?: number | null
+          tier?: Database["public"]["Enums"]["user_tier"] | null
+          trust_level?: Database["public"]["Enums"]["trust_level"] | null
+          trust_score?: number | null
+          updated_at?: string | null
+          upvote_rate?: number | null
+          username?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
