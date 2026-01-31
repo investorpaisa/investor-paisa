@@ -1,51 +1,49 @@
 import React from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { 
-  Home, Search, Users, MessageCircle, Bell, 
-  TrendingUp, LogOut, PlusCircle, BarChart3
+  Home, Search, MessageCircle, Bell, 
+  TrendingUp, LogOut, BarChart3, Compass
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
-const MainLayout = () => {
+interface MainLayoutProps {
+  children?: React.ReactNode;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, profile } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account."
-      });
+      toast.success("Logged out successfully");
       navigate('/');
     } catch (error) {
       console.error('Error logging out:', error);
-      toast({
-        title: "Error logging out",
-        description: "Please try again.",
-        variant: "destructive"
-      });
+      toast.error("Error logging out");
     }
   };
 
   const navigation = [
-    { name: 'Home', href: '/home', icon: Home },
-    { name: 'Feed', href: '/feed', icon: TrendingUp },
+    { name: 'Feed', href: '/feed', icon: Home },
+    { name: 'Discover', href: '/discover', icon: Compass },
     { name: 'Markets', href: '/markets', icon: BarChart3 },
-    { name: 'Circles', href: '/circles', icon: Users },
-    { name: 'Messages', href: '/inbox', icon: MessageCircle },
+    { name: 'Messages', href: '/messages', icon: MessageCircle },
     { name: 'Notifications', href: '/notifications', icon: Bell },
   ];
+
+  const isActive = (href: string) => location.pathname === href || location.pathname.startsWith(href + '/');
 
   return (
     <div className="min-h-screen bg-background">
       {/* Top Navigation */}
-      <nav className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
+      <nav className="sticky top-0 z-40 glass border-b border-border/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
@@ -53,67 +51,82 @@ const MainLayout = () => {
             <div className="flex items-center space-x-4">
               <div 
                 className="flex items-center space-x-2 cursor-pointer"
-                onClick={() => navigate('/home')}
+                onClick={() => navigate('/feed')}
               >
-                <div className="h-8 w-8 bg-gradient-to-r from-primary to-primary/80 rounded-xl flex items-center justify-center">
+                <div className="h-9 w-9 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center glow-primary">
                   <TrendingUp className="h-5 w-5 text-primary-foreground" />
                 </div>
-                <span className="text-xl font-bold text-foreground">
-                  InvestorPaisa
+                <span className="text-xl font-bold font-heading hidden sm:block">
+                  Investor<span className="text-primary">Paisa</span>
                 </span>
               </div>
             </div>
 
             {/* Search */}
-            <div className="flex-1 max-w-2xl mx-8">
+            <div className="flex-1 max-w-xl mx-4 hidden md:block">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => navigate('/discover')}
-                className="w-full justify-start text-muted-foreground bg-muted/50 border-border hover:bg-muted rounded-2xl h-12"
+                className="w-full justify-start text-muted-foreground bg-secondary/50 border border-border/50 hover:bg-secondary hover:border-primary/30 rounded-xl h-10"
               >
-                <Search className="h-5 w-5 mr-3" />
-                <span>Search people, posts, topics...</span>
+                <Search className="h-4 w-4 mr-3" />
+                <span className="text-sm">Search...</span>
               </Button>
             </div>
 
-            {/* Right Navigation */}
-            <div className="flex items-center space-x-2">
+            {/* Navigation Links */}
+            <div className="flex items-center space-x-1">
               {navigation.map((item) => (
                 <Button
                   key={item.name}
                   variant="ghost"
                   size="sm"
-                  className="flex flex-col items-center p-2 h-12 w-12 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                  className={`flex items-center p-2 h-10 w-10 rounded-xl transition-all ${
+                    isActive(item.href) 
+                      ? 'text-primary bg-primary/10' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
                   onClick={() => navigate(item.href)}
                 >
                   <item.icon className="h-5 w-5" />
                 </Button>
               ))}
               
-              {/* Profile Dropdown */}
-              <div className="ml-4 flex items-center space-x-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-1 rounded-full hover:bg-muted"
-                  onClick={() => navigate('/profile')}
-                >
-                  <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/20 transition-all">
-                    <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
-                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                      {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8 p-0"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
+              {/* Profile / Auth */}
+              <div className="ml-2 flex items-center space-x-2">
+                {user ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="p-1 rounded-full hover:bg-secondary"
+                      onClick={() => navigate('/profile')}
+                    >
+                      <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/30 transition-all">
+                        <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
+                        <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                          {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleLogout}
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8 p-0"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={() => navigate('/auth')}
+                    className="bg-primary text-primary-foreground rounded-xl h-9 px-4"
+                  >
+                    Sign in
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -122,18 +135,8 @@ const MainLayout = () => {
 
       {/* Main Content */}
       <main className="flex-1">
-        <Outlet />
+        {children || <Outlet />}
       </main>
-
-      {/* Create Post FAB */}
-      <Button
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all z-30"
-        onClick={() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      >
-        <PlusCircle className="h-6 w-6" />
-      </Button>
     </div>
   );
 };
