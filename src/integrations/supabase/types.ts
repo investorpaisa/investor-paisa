@@ -866,6 +866,45 @@ export type Database = {
         }
         Relationships: []
       }
+      news_articles: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          published_at: string
+          relevance_score: number
+          source: string
+          summary: string | null
+          thumbnail_url: string | null
+          title: string
+          url: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id: string
+          published_at?: string
+          relevance_score?: number
+          source: string
+          summary?: string | null
+          thumbnail_url?: string | null
+          title: string
+          url: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          published_at?: string
+          relevance_score?: number
+          source?: string
+          summary?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          url?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           actor_id: string | null
