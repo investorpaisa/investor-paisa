@@ -40,7 +40,8 @@ const Profile = () => {
     try {
       await supabase.auth.signOut();
       toast.success("Logged out successfully");
-      navigate('/');
+      // Navigate to landing page after logout
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Error logging out:', error);
       toast.error("Error logging out");

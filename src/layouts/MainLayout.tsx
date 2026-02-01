@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Listen for focusSearch event (triggered by Find People button)
+  useEffect(() => {
+    const handleFocusSearch = () => {
+      if (!isMobile && searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    };
+
+    window.addEventListener('focusSearch', handleFocusSearch);
+    return () => window.removeEventListener('focusSearch', handleFocusSearch);
+  }, [isMobile]);
 
   const navigation = [
     { name: 'Feed', href: '/feed', icon: Home },
@@ -75,6 +88,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
+                  ref={searchInputRef}
                   placeholder="Search posts, people, topics..."
                   value={searchQuery}
                   onChange={(e) => {
@@ -97,14 +111,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               )}
             </div>
 
-            {/* Navigation Links */}
+            {/* Navigation Links - All icons with rounded-xl (12px radius) */}
             <div className="flex items-center space-x-1">
               {navigation.map((item) => (
                 <Button
                   key={item.name}
                   variant="ghost"
                   size="sm"
-                  className={`flex items-center p-2 h-10 w-10 rounded-xl transition-all ${
+                  className={`flex items-center justify-center p-2 h-10 w-10 rounded-xl transition-all ${
                     isActive(item.href) 
                       ? 'text-primary bg-primary/10' 
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary'

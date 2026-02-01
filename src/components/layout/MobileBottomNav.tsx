@@ -67,7 +67,7 @@ export const MobileBottomNav: React.FC = () => {
               key={item.name}
               variant="ghost"
               size="sm"
-              className={`flex flex-col items-center justify-center h-12 w-12 rounded-lg gap-0.5 ${
+              className={`flex flex-col items-center justify-center h-12 w-12 rounded-xl gap-0.5 ${
                 isActive(item.href)
                   ? 'text-primary bg-primary/10'
                   : 'text-muted-foreground hover:text-foreground'
