@@ -20,15 +20,16 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
-    // RCA FIX: OTP_ACCOUNT_SID was an API Key (SK...), not Account SID (AC...)
-    // Twilio requires the main Account SID that owns the phone number
-    // ALWAYS use TWILIO_ACCOUNT_SID (which starts with AC) as the main account
-    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
-    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')
+    // RCA FIX: Use OTP_* secrets as primary, fallback to TWILIO_* for backwards compatibility
+    // OTP_ACCOUNT_SID should be the Account SID that owns the From phone number (starts with AC)
+    const twilioAccountSid = Deno.env.get('OTP_ACCOUNT_SID') || Deno.env.get('TWILIO_ACCOUNT_SID')
+    const twilioAuthToken = Deno.env.get('OTP_AUTH_TOKEN') || Deno.env.get('TWILIO_AUTH_TOKEN')
+    const fromNumber = Deno.env.get('OTP_FROM_NUMBER') || '+12184534076'
 
     console.log('[OTP Request] Starting OTP request...')
-    console.log('[OTP Request] TWILIO_ACCOUNT_SID configured:', !!twilioAccountSid)
-    console.log('[OTP Request] TWILIO_AUTH_TOKEN configured:', !!twilioAuthToken)
+    console.log('[OTP Request] Account SID configured:', !!twilioAccountSid)
+    console.log('[OTP Request] Auth Token configured:', !!twilioAuthToken)
+    console.log('[OTP Request] From Number:', fromNumber)
     console.log('[OTP Request] Account SID prefix:', twilioAccountSid ? twilioAccountSid.substring(0, 6) + '...' : 'NONE')
 
     // Get user from auth header
@@ -137,13 +138,13 @@ serve(async (req) => {
         
         const smsBody = new URLSearchParams({
           To: formattedPhone,
-          From: '+12184534076', // Twilio phone number owned by TWILIO_ACCOUNT_SID
+          From: fromNumber, // Use configurable from number from secrets
           Body: `Your InvestorPaisa verification code is ${otp}. Valid for 10 minutes. Do not share this code.`,
         })
 
         console.log('[OTP Request] SMS request body:', {
           To: formattedPhone,
-          From: '+12184534076',
+          From: fromNumber,
           Body: `OTP: ${otp.substring(0, 3)}***`
         })
 

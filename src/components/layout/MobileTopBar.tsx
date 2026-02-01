@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,21 @@ export const MobileTopBar: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Listen for focusSearch event (triggered by Find People button)
+  useEffect(() => {
+    const handleFocusSearch = () => {
+      setShowSearch(true);
+      // Focus after state update
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    };
+
+    window.addEventListener('focusSearch', handleFocusSearch);
+    return () => window.removeEventListener('focusSearch', handleFocusSearch);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 glass border-b border-border/50">
@@ -34,6 +49,7 @@ export const MobileTopBar: React.FC = () => {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => {

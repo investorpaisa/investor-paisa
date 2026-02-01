@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Heart, MessageSquare, Bookmark, MoreHorizontal, TrendingUp } from 'lucide-react';
+import { Heart, MessageSquare, Bookmark, MoreHorizontal, TrendingUp, Share2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,21 +51,48 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
 
   return (
     <CardHeader className="p-4 pb-2">
-      {/* Top row: Type badge left, Bookmark + 3-dots right */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
+      {/* Row 1: Author info LEFT | Type badge + Bookmark + 3-dots RIGHT */}
+      <div className="flex items-center justify-between">
+        {/* Left: Author */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Avatar className="h-10 w-10 shrink-0">
+            <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'Profile'} />
+            <AvatarFallback>{post.author?.full_name?.charAt(0) || 'U'}{post.author?.full_name?.split(' ')[1]?.charAt(0) || ''}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 text-left">
+            <div className="flex items-center gap-1">
+              <h4 className="font-medium truncate hover:underline cursor-pointer text-sm" onClick={(e) => { handleProfileClick(e); onClick?.(post); }}>
+                {post.author?.full_name || 'Unknown User'}
+              </h4>
+              {post.author?.is_verified && (
+                <span className="text-primary shrink-0">
+                  <TrendingUp className="h-3 w-3" />
+                </span>
+              )}
+            </div>
+            <div className="flex items-center text-xs text-muted-foreground truncate">
+              <span className="truncate">@{post.author?.username || 'username'}</span>
+              <span className="mx-1.5 shrink-0">•</span>
+              <span className="shrink-0">{new Date(post.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Right: Type Badge + Bookmark + 3-dot menu */}
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          {/* Type Badge */}
           {typeLabel && (
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs capitalize">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5 shrink-0">
               {typeLabel}
             </Badge>
           )}
           {post.category && !typeLabel && (
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] h-5 px-1.5 shrink-0">
               {post.category.name}
             </Badge>
           )}
-        </div>
-        <div className="flex items-center gap-1">
+          
+          {/* Bookmark */}
           <Button
             variant="ghost"
             size="icon"
@@ -77,6 +104,8 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
           >
             <Bookmark className="h-4 w-4" fill={post.isBookmarked ? "currentColor" : "none"} />
           </Button>
+          
+          {/* 3-dot menu - ALWAYS top-right */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -93,6 +122,7 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
                 e.stopPropagation();
                 onShare?.(post);
               }}>
+                <Share2 className="mr-2 h-4 w-4" />
                 Share
               </DropdownMenuItem>
               <DropdownMenuItem>Report content</DropdownMenuItem>
@@ -100,31 +130,6 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
               <DropdownMenuItem>Copy link</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
-      
-      {/* Author row */}
-      <div className="flex items-center gap-3">
-        <Avatar>
-          <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'Profile'} />
-          <AvatarFallback>{post.author?.full_name?.charAt(0) || 'U'}{post.author?.full_name?.split(' ')[1]?.charAt(0) || ''}</AvatarFallback>
-        </Avatar>
-        <div className="text-left">
-          <div className="flex items-center gap-1">
-            <h4 className="font-medium hover:underline cursor-pointer" onClick={(e) => { handleProfileClick(e); onClick?.(post); }}>
-              {post.author?.full_name || 'Unknown User'}
-            </h4>
-            {post.author?.is_verified && (
-              <span className="text-primary">
-                <TrendingUp className="h-3 w-3" />
-              </span>
-            )}
-          </div>
-          <div className="flex items-center text-xs text-muted-foreground">
-            <span className="mr-2">@{post.author?.username || 'username'}</span>
-            <span className="mr-2">•</span>
-            <span>{new Date(post.created_at).toLocaleDateString()}</span>
-          </div>
         </div>
       </div>
     </CardHeader>
@@ -139,8 +144,10 @@ interface PostCardContentProps {
 const PostCardContent: React.FC<PostCardContentProps> = ({ post, onClick }) => {
   return (
     <CardContent className="p-4 pt-2 cursor-pointer text-left" onClick={() => onClick?.(post)}>
-      <h3 className="text-lg font-medium mb-2 text-left">{post.title}</h3>
-      <p className="text-muted-foreground text-sm text-left">{post.content}</p>
+      {/* Title - 2 line truncate */}
+      <h3 className="text-base font-medium mb-1 line-clamp-2 text-left">{post.title}</h3>
+      {/* Description - 3 line truncate */}
+      <p className="text-muted-foreground text-sm line-clamp-3 text-left">{post.content}</p>
     </CardContent>
   );
 };
@@ -151,34 +158,34 @@ interface PostCardFooterProps {
   onComment?: (post: EnhancedPost) => void;
 }
 
-// Share and Bookmark icons removed from footer - now in header area
+// Footer: Only like and comment actions - Share moved to 3-dot menu
 const PostCardFooter: React.FC<PostCardFooterProps> = ({ post, onLike, onComment }) => {
   return (
     <CardFooter className="p-4 pt-0">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-start gap-6 w-full">
         <Button
           variant="ghost"
           size="sm"
-          className={`gap-1 ${post.isLiked ? 'text-primary' : ''}`}
+          className={`gap-1.5 h-8 px-3 ${post.isLiked ? 'text-primary' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             onLike?.(post);
           }}
         >
           <Heart className="h-4 w-4" fill={post.isLiked ? "currentColor" : "none"} />
-          <span>{post.like_count}</span>
+          <span className="text-sm">{post.like_count}</span>
         </Button>
         <Button 
           variant="ghost" 
           size="sm" 
-          className="gap-1" 
+          className="gap-1.5 h-8 px-3" 
           onClick={(e) => {
             e.stopPropagation();
             onComment?.(post);
           }}
         >
           <MessageSquare className="h-4 w-4" />
-          <span>{post.comment_count}</span>
+          <span className="text-sm">{post.comment_count}</span>
         </Button>
       </div>
     </CardFooter>

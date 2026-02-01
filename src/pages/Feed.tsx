@@ -636,7 +636,12 @@ const Feed: React.FC = () => {
                       }
                       action={
                         activeFeedTab === 'following'
-                          ? { label: 'Find People', onClick: () => navigate('/feed') }
+                          ? { label: 'Find People', onClick: () => {
+                              // Trigger search focus - scroll to top and focus search
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              // Dispatch custom event for search focus
+                              window.dispatchEvent(new CustomEvent('focusSearch'));
+                            }}
                           : undefined
                       }
                     />

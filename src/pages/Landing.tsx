@@ -33,7 +33,7 @@ const Landing: React.FC = () => {
   }, [user, navigate]);
 
   const handleStartCTA = () => {
-    setShowAuthGate(true);
+    navigate('/auth');
   };
 
   const handleAuthGate = () => {
@@ -97,7 +97,7 @@ const Landing: React.FC = () => {
       </div>
 
       {/* Header with Search */}
-      <header className="relative z-20 px-4 sm:px-6 py-4 sm:py-6">
+      <header className="relative z-20 px-4 sm:px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Logo - Left */}
           <div className="flex items-center shrink-0">
@@ -118,7 +118,7 @@ const Landing: React.FC = () => {
                   setShowSearchResults(e.target.value.length > 0);
                 }}
                 onFocus={() => searchQuery.length > 0 && setShowSearchResults(true)}
-                className="pl-10 pr-10 bg-secondary/50 border-border/50 focus:border-primary/50 h-10"
+                className="pl-10 pr-10 bg-secondary/50 border-border/50 focus:border-primary/50 h-10 rounded-xl"
               />
               {searchQuery && (
                 <button 
@@ -201,8 +201,13 @@ const Landing: React.FC = () => {
             </div>
           </div>
           
-          {/* Empty right side to balance header */}
-          <div className="w-20 hidden sm:block" />
+          {/* Sign In button - Right */}
+          <Button 
+            onClick={handleStartCTA}
+            className="bg-primary text-primary-foreground rounded-xl h-9 px-4 text-sm font-medium"
+          >
+            Sign in
+          </Button>
         </div>
         
         {/* Mobile search */}
@@ -215,7 +220,7 @@ const Landing: React.FC = () => {
               setSearchQuery(e.target.value);
               setShowSearchResults(e.target.value.length > 0);
             }}
-            className="pl-10 bg-secondary/50 border-border/50"
+            className="pl-10 bg-secondary/50 border-border/50 rounded-xl"
           />
         </div>
       </header>
@@ -229,7 +234,7 @@ const Landing: React.FC = () => {
       >
         <div className="max-w-4xl mx-auto text-center">
           <motion.h1 
-            className="text-4xl sm:text-5xl md:text-7xl font-bold mb-4 sm:mb-6 leading-tight font-heading"
+            className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4 leading-tight font-heading"
             variants={itemVariants}
           >
             Ask anything about{' '}
@@ -237,17 +242,44 @@ const Landing: React.FC = () => {
           </motion.h1>
           
           <motion.p 
-            className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 sm:mb-12"
+            className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8"
             variants={itemVariants}
           >
             AI + community + experts.
           </motion.p>
+
+          {/* CTA Buttons */}
+          <motion.div 
+            className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8"
+            variants={itemVariants}
+          >
+            <Button 
+              size="lg" 
+              onClick={handleStartCTA}
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground text-sm py-2.5 h-11 rounded-xl font-medium px-6"
+            >
+              Get Started
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button 
+              size="lg" 
+              variant="outline"
+              onClick={() => {
+                const feedSection = document.getElementById('feed-preview');
+                feedSection?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="w-full sm:w-auto border-border text-foreground text-sm py-2.5 h-11 rounded-xl font-medium px-6"
+            >
+              Explore Feed
+            </Button>
+          </motion.div>
         </div>
       </motion.section>
 
       {/* Limited Pulse Feed Preview (first 10 items, read-only) */}
       <motion.section
-        className="relative z-10 px-4 sm:px-6 pb-24"
+        id="feed-preview"
+        className="relative z-10 px-4 sm:px-6 pb-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6, duration: 0.8 }}
@@ -257,9 +289,9 @@ const Landing: React.FC = () => {
         </div>
       </motion.section>
 
-      {/* Sticky Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-background via-background to-transparent">
-        <div className="max-w-md mx-auto">
+      {/* Sticky Bottom CTA - smaller and refined */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-3 bg-gradient-to-t from-background via-background/95 to-transparent">
+        <div className="max-w-sm mx-auto">
           <motion.div 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }}
@@ -267,10 +299,10 @@ const Landing: React.FC = () => {
             <Button 
               size="lg" 
               onClick={handleStartCTA}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-base py-3 h-12 rounded-2xl glow-primary font-semibold"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm py-2.5 h-11 rounded-xl font-medium"
             >
               Start
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </motion.div>
         </div>
