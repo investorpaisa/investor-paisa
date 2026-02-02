@@ -39,7 +39,7 @@ function App() {
             <SessionProvider>
               <Routes>
                 {/* Public routes */}
-                <Route path="/" element={<Landing />} />
+                <Route path="/" element={<Navigate to="/feed" replace />} />
                 <Route path="/auth" element={<Auth />} />
                 
                 {/* Legacy auth routes - redirect to new auth */}

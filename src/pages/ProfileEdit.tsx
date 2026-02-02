@@ -14,6 +14,7 @@ import { EducationSection } from '@/components/profile/edit/EducationSection';
 import { SkillsSection } from '@/components/profile/edit/SkillsSection';
 import { CertificationsSection } from '@/components/profile/edit/CertificationsSection';
 import { PrivacySection } from '@/components/profile/edit/PrivacySection';
+import { InterestsSection } from '@/components/profile/edit/InterestsSection';
 import { StickyBottomBar } from '@/components/profile/edit/StickyBottomBar';
 import { trackEvent } from '@/services/analytics/googleAnalytics';
 
@@ -26,6 +27,7 @@ const ProfileEdit = () => {
     certifications,
     skills,
     goals,
+    interests,
     isLoading,
     isSaving,
     isDirty,
@@ -35,6 +37,7 @@ const ProfileEdit = () => {
     updateCertifications,
     updateSkills,
     updateGoals,
+    updateInterests,
     save,
     user,
     authProfile,
@@ -212,6 +215,12 @@ const ProfileEdit = () => {
         <SkillsSection
           skills={skills}
           onUpdate={updateSkills}
+        />
+
+        {/* Interests */}
+        <InterestsSection
+          interests={interests}
+          onUpdate={updateInterests}
         />
 
         {/* Certifications */}

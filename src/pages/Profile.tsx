@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { 
   Edit, Mail, MessageCircle, Calendar, Briefcase, 
-  MapPin, Award, TrendingUp, Target, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut, Bookmark
+  MapPin, Award, TrendingUp, Target, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut, Bookmark, ExternalLink
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -40,8 +40,8 @@ const Profile = () => {
     try {
       await supabase.auth.signOut();
       toast.success("Logged out successfully");
-      // Navigate to landing page after logout
-      navigate('/', { replace: true });
+      // Navigate to feed (now the logged-out landing) after logout
+      navigate('/feed', { replace: true });
     } catch (error) {
       console.error('Error logging out:', error);
       toast.error("Error logging out");
@@ -289,6 +289,10 @@ const Profile = () => {
                       <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(`/u/${profile.username}`)}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        View Public Profile
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
