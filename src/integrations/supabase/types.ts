@@ -975,6 +975,7 @@ export type Database = {
       }
       mobile_otp_requests: {
         Row: {
+          attempts: number
           created_at: string | null
           expires_at: string
           id: string
@@ -984,6 +985,7 @@ export type Database = {
           verified: boolean | null
         }
         Insert: {
+          attempts?: number
           created_at?: string | null
           expires_at: string
           id?: string
@@ -993,6 +995,7 @@ export type Database = {
           verified?: boolean | null
         }
         Update: {
+          attempts?: number
           created_at?: string | null
           expires_at?: string
           id?: string

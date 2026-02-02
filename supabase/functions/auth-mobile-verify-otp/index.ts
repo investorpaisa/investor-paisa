@@ -92,7 +92,26 @@ serve(async (req) => {
       storedPhone: otpRequest.phone_number?.substring(0, 5) + '...',
       storedOtp: otpRequest.otp_code?.substring(0, 2) + '****',
       expiresAt: otpRequest.expires_at,
+      attempts: otpRequest.attempts || 0,
     })
+
+    // Security: Check if max attempts exceeded (brute-force protection)
+    const MAX_ATTEMPTS = 3
+    const currentAttempts = otpRequest.attempts || 0
+    
+    if (currentAttempts >= MAX_ATTEMPTS) {
+      // Delete OTP after max failed attempts
+      await supabase
+        .from('mobile_otp_requests')
+        .delete()
+        .eq('id', otpRequest.id)
+      
+      console.error('[OTP Verify] Max attempts exceeded, OTP invalidated')
+      return new Response(JSON.stringify({ error: 'Too many failed attempts. Please request a new OTP.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     // Check if phone numbers match (compare cleaned versions)
     const storedPhoneCleaned = otpRequest.phone_number?.replace(/[\s\-\(\)]/g, '')
@@ -139,8 +158,18 @@ serve(async (req) => {
     })
 
     if (!otpMatch) {
-      console.error('[OTP Verify] Invalid OTP provided')
-      return new Response(JSON.stringify({ error: 'Invalid OTP. Please check and try again.' }), {
+      // Increment failed attempts counter
+      await supabase
+        .from('mobile_otp_requests')
+        .update({ attempts: currentAttempts + 1 })
+        .eq('id', otpRequest.id)
+      
+      const remainingAttempts = MAX_ATTEMPTS - currentAttempts - 1
+      console.error('[OTP Verify] Invalid OTP provided. Remaining attempts:', remainingAttempts)
+      
+      return new Response(JSON.stringify({ 
+        error: `Invalid OTP. ${remainingAttempts > 0 ? `${remainingAttempts} attempt(s) remaining.` : 'Please request a new OTP.'}` 
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
