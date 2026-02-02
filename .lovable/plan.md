@@ -1,333 +1,450 @@
 
 
-# Comprehensive Fix Plan for InvestorPaisa
+# InvestorPaisa Production Readiness Implementation Plan
 
 ## Executive Summary
 
-This plan addresses 6 critical issues in strict execution order. Each fix includes root cause analysis, specific file changes, and acceptance criteria.
+This plan addresses 7 specific production issues in strict execution order. Each fix includes root cause analysis, implementation details, and verification criteria.
 
 ---
 
-## Build Error (Non-Code Issue)
+## Issue 1: Sign-up/Sign-in Flow Enhancement
 
-**Root Cause:** The error `pooler config returned empty array` is a transient Lovable Cloud infrastructure issue with the Supabase connection pooler.
+### Current State Analysis
+- **Problem 1**: After email OTP verification, the system falls back to a magic link flow (`signInWithOtp`) when no session is returned from `auth-complete`
+- **Problem 2**: Users see "Check your email!" and must click another link to complete sign-in
+- **Problem 3**: No verification prompt shown after successful authentication
 
-**Resolution:** This is not a code issue. The system should retry automatically, or you can trigger a rebuild. No code changes required.
+### Root Cause
+The `auth-complete` edge function creates users but doesn't generate JWT sessions directly. The current fallback uses Supabase's `signInWithOtp` which sends another email.
+
+### Technical Solution
+
+#### A. Fix `auth-complete` Edge Function to Generate Session
+Update `supabase/functions/auth-complete/index.ts` to generate proper JWT tokens using the admin API:
+
+```text
+Changes Required:
+1. After user creation/lookup, use admin.generateLink() to create session
+2. Return proper access_token and refresh_token
+3. Remove fallback to magic link completely
+```
+
+#### B. Update Auth.tsx Flow
+1. Remove the magic link fallback code (lines 187-206)
+2. After successful OTP verification with session:
+   - For NEW users: Redirect to `/feed` with verification modal overlay
+   - For EXISTING users: Redirect directly to `/feed`
+3. Store `isNewUser` flag to trigger verification modal
+
+#### C. Add Verification Modal on Feed for New Users
+1. Create a state to track if user just signed up
+2. Show `VerificationModal` as dismissable overlay on `/feed` for new sign-ups
+3. Update `VerificationModal` to navigate to `/profile/edit` with auto-scroll
+
+#### D. Google OAuth Flow
+1. After Google sign-in callback, check if user is new (profile just created)
+2. If new user, show verification modal overlay on feed
+3. If existing user, proceed directly to feed
+
+### Files Modified
+- `supabase/functions/auth-complete/index.ts`
+- `src/pages/Auth.tsx`
+- `src/pages/Feed.tsx` (add verification modal trigger)
+- `src/components/auth/VerificationModal.tsx` (update navigation)
 
 ---
 
-## 1. POINT 6 - Sign Up / Sign In Journey (PRIORITY: HIGHEST)
+## Issue 2: Desktop Card - 3-Dot Menu Position
 
-### Root Cause Analysis
-- **Current State:** Auth uses Supabase's built-in `signInWithOtp`, `signInWithPassword`, and `signUpWithEmail` methods directly
-- **Problem:** No unified canonical endpoint handling user lookup/creation in a single transaction
-- **Files Affected:** `src/contexts/AuthContext.tsx`, `src/pages/Auth.tsx`
+### Current State Analysis
+Looking at the reference screenshot (image-3.png), the 3-dot menu should be sticky to the top-right corner of the card widget. Current implementation has it inline with the header.
 
-### Technical Implementation
+### Root Cause
+CSS layout uses `flex justify-between` but doesn't enforce absolute positioning for the 3-dot menu.
 
-#### A. Create Canonical Auth Complete Edge Function
-```
-supabase/functions/auth-complete/index.ts
-```
-- Single `POST /auth/complete` endpoint
-- Payload: `{ provider: "email" | "google" | "mobile" | "linkedin", credential: string }`
-- Flow: Validate credential -> Derive identity key -> Query users -> If exists return user, else create -> Create session -> Return `{ success: true, user, session }`
-- Handle UNIQUE constraint violations by fallback to SELECT
-- Comprehensive logging at each step
+### Technical Solution
 
-#### B. Update AuthContext.tsx
-- Add new `authComplete` method that calls the edge function
-- Maintain backward compatibility with existing methods
-- Ensure session exists before navigation
+Update `src/components/posts/PostCard.tsx` and `src/pages/Feed.tsx`:
 
-#### C. Update Auth.tsx
-- Replace direct Supabase calls with edge function calls
-- Only proceed to redirect when `success === true`
-- Improve error handling and user feedback
-
-### Database Considerations
-- Verify `email UNIQUE` and `username UNIQUE` constraints exist on profiles table
-- No schema changes needed if constraints already exist
-
-### Acceptance Criteria
-- New user signs up -> lands on `/feed`
-- Existing user signs in -> lands on `/feed`
-- No partial users created
-- Proper error messages for duplicate email/username
-
----
-
-## 2. POINT 5 - Mobile OTP + LinkedIn Connect (PRIORITY: HIGH)
-
-### Part A: Mobile OTP
-
-#### Root Cause Analysis
-- **Current State:** Edge functions exist and are well-structured
-- **Secrets Verified:** `OTP_ACCOUNT_SID`, `OTP_AUTH_TOKEN`, `OTP_FROM_NUMBER` are all configured
-- **Potential Issues:** 
-  - Phone number format validation
-  - Twilio account configuration (Account SID must own the From number)
-  - OTP hash comparison logic
-
-#### Technical Implementation
-- Verify OTP edge functions use correct secrets with proper fallbacks
-- Add more detailed logging for Twilio responses
-- Ensure phone normalization to `+91XXXXXXXXXX` format
-- Store OTP hash (not plaintext) with expiry
-
-#### Files to Review/Update
-- `supabase/functions/auth-mobile-request-otp/index.ts` (already well-structured)
-- `supabase/functions/auth-mobile-verify-otp/index.ts` (already well-structured)
-
-### Part B: LinkedIn OIDC
-
-#### Root Cause Analysis
-- **Current State:** Edge function exists with proper OIDC flow
-- **Secrets Verified:** `LINKEDIN_OIDC_CLIENT_ID`, `LINKEDIN_OIDC_CLIENT_SECRET` are configured
-- **Required:** Redirect URI must be registered in LinkedIn Developer Console
-
-#### Technical Implementation
-- Verify redirect URI in frontend matches LinkedIn app configuration
-- Ensure proper error handling for token exchange
-- Store `linkedin_id` (sub claim) and set `linkedin_verified = true`
-
-#### Files to Review/Update
-- `supabase/functions/auth-linkedin-connect/index.ts` (already well-structured)
-- Frontend integration in Edit Profile
-
-### Acceptance Criteria
-- OTP SMS arrives on phone
-- OTP verifies correctly
-- `mobile_verified = true` persists after refresh
-- LinkedIn popup opens and returns to app
-- "Connected" status shows in profile
-
----
-
-## 3. POINT 3 - Widget/Card Usability Fixes (PRIORITY: HIGH)
-
-### Root Cause Analysis
-Based on the uploaded reference images, the current card layout has issues:
-- **Issue 1:** In the first image, the time text wraps to multiple lines
-- **Issue 2:** Card header alignment doesn't match the second reference image
-- **Reference Target (image-2):** Clean single-line header: `[Avatar] [Name @username] • [time] | [Question Badge] [...menu]`
-
-### Technical Implementation
-
-#### A. Update PostCard.tsx
-```
-Card Header Structure (MANDATORY):
-[ Avatar + FullName + @username + time ] ---- [ Question | Opinion | News ] [ ... ]
-
-CSS Rules:
-- Outer: display:flex, justify-content:space-between, align-items:center
-- Left: Author info (name, username, time) - all on single line with truncation
-- Right: Type Badge + 3-dot menu (NO bookmark in header - move to footer)
-- Remove large vertical gap between name and username
+```text
+Card Header Structure:
+- Make Card position: relative
+- Position 3-dot menu as: absolute, top-3, right-3
+- Remove 3-dot from flex row
+- Header row: [ Avatar + Name + @username + time ] [ Type Badge ]
 ```
 
-#### B. Update LandingFeedPreview.tsx (Signed-out cards)
-- Apply same header structure
-- Remove share icon from footer (keep only in 3-dot menu)
-
-#### C. Update Feed.tsx (FeedPostCard component)
-- Ensure same consistent layout
-
-#### D. Footer Changes
-- Remove Share icon from visible footer (already in 3-dot)
-- Bookmark on right
-- Upvote, Downvote, Comment, Repost - equidistant on left
-
-### CSS Truncation Rules
+### CSS Changes
 ```css
-.name { @apply truncate; /* 1 line */ }
-.username { @apply truncate; /* 1 line */ }
-.time { @apply shrink-0 whitespace-nowrap; /* 1 line, no wrap */ }
-.title { @apply line-clamp-2; /* 2 lines */ }
-.description { @apply line-clamp-3; /* 3 lines */ }
+/* Card wrapper */
+.card { position: relative; }
+
+/* 3-dot menu - absolute top right */
+.three-dot-menu { 
+  position: absolute; 
+  top: 0.75rem; 
+  right: 0.75rem; 
+}
 ```
 
-### Files to Update
+### Files Modified
 - `src/components/posts/PostCard.tsx`
-- `src/components/landing/LandingFeedPreview.tsx`
 - `src/pages/Feed.tsx` (FeedPostCard component)
-
-### Acceptance Criteria
-- All cards have consistent header alignment across all pages
-- Type badge and 3-dots are right-aligned
-- No share icon in footer
-- Time is single-line, no wrap
-- Mobile: CTAs are equidistant
+- `src/components/landing/LandingFeedPreview.tsx`
 
 ---
 
-## 4. POINT 2 - Email OTP Instead of Magic Link (PRIORITY: MEDIUM)
+## Issue 3: Mobile Card Layout Fixes
 
-### Root Cause Analysis
-- **Current State:** Uses `supabase.auth.signInWithOtp` which sends magic link by default
-- **Required:** Send 6-digit OTP code via email instead
+### Current State Analysis
+From the reference screenshot (Media_18.jpg):
+- Card content overflows widget boundaries
+- 3-dot menu should be at top-right with consistent padding
+- Footer CTAs (Upvote, Downvote, Comment, Repost, Save) need equidistant spacing
 
-### Technical Implementation
+### Root Cause
+1. No max-width constraints on card content
+2. Footer uses `gap` but not `justify-between` for equidistant distribution
+3. Mobile padding inconsistent
 
-#### A. Create Email OTP Edge Functions
-```
-supabase/functions/auth-email-request-otp/index.ts
-- Generate 6-digit OTP
-- Store hash + email + expiry in database table
-- Send OTP via email using Resend
+### Technical Solution
 
-supabase/functions/auth-email-verify-otp/index.ts
-- Compare hash
-- If valid -> proceed to /auth/complete
+#### A. Card Content Overflow Fix
+```css
+/* Apply to CardContent */
+.card-content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 ```
 
-#### B. Update Auth.tsx
-- Replace `signInWithOtp` call with edge function call
-- Update UI flow: Enter email -> Receive OTP -> Verify -> Login
+#### B. Footer CTA Equidistant Layout
+```css
+/* Mobile footer: equidistant CTAs */
+@media (max-width: 640px) {
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+  }
+}
+```
 
-#### C. Email Template
-- Simple email with 6-digit code
-- 10-minute expiry notice
+#### C. Consistent Padding
+- Card: `px-3` on mobile
+- Header/Footer: `p-3`
+- Ensure 3-dot menu has consistent margin from card edge
 
-### Database Schema
-- Reuse `mobile_otp_requests` table or create `email_otp_requests` table
-- Fields: `user_id`, `email`, `otp_hash`, `expires_at`, `verified`
-
-### Secrets Required
-- `RESEND_API_KEY` - Need to verify if configured
-
-### Acceptance Criteria
-- Email receives 6-digit OTP code (not magic link)
-- OTP verifies and user logs in
-- No login links in email
-
----
-
-## 5. POINT 4 - Profile Page Card Header Alignment (PRIORITY: MEDIUM)
-
-### Root Cause Analysis
-- Profile page uses inline card rendering, not the shared PostCard component
-- Need to apply same header structure as Point 3
-
-### Technical Implementation
-
-#### A. Update Profile.tsx
-- In the Posts, Answers, Comments, Saved tabs
-- Apply same card header structure:
-  - Left: Type badge + Title
-  - Right: 3-dots menu
-- Ensure consistent with Feed cards
-
-### Files to Update
-- `src/pages/Profile.tsx` (lines 447-580 for tab content cards)
-
-### Acceptance Criteria
-- Profile page cards match Feed card alignment
-- Question tag + 3-dots right aligned
-- No visual inconsistency with other pages
+### Files Modified
+- `src/components/posts/PostCard.tsx`
+- `src/pages/Feed.tsx` (FeedPostCard)
+- `src/components/landing/LandingFeedPreview.tsx`
 
 ---
 
-## 6. POINT 1 - Logged Out Landing Page Revamp (PRIORITY: MEDIUM)
+## Issue 4: Report Content and Hide User Posts
+
+### Current State Analysis
+- Dropdown menu shows "Report content" and "Hide posts from this user" items
+- No handlers are attached - clicking does nothing
+- No database tables for content reports or hidden users
+
+### Technical Solution
+
+#### A. Create Database Tables
+
+```sql
+-- Content Reports Table
+CREATE TABLE public.content_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  entity_id UUID NOT NULL,
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('post', 'comment', 'answer')),
+  reason TEXT NOT NULL,
+  description TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(reporter_id, entity_id, entity_type)
+);
+
+-- Hidden Users Table
+CREATE TABLE public.hidden_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  hidden_user_id UUID NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, hidden_user_id)
+);
+
+-- Enable RLS
+ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hidden_users ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can create reports" ON public.content_reports
+  FOR INSERT TO authenticated WITH CHECK (auth.uid() = reporter_id);
+
+CREATE POLICY "Users can view own reports" ON public.content_reports
+  FOR SELECT TO authenticated USING (auth.uid() = reporter_id);
+
+CREATE POLICY "Users can manage hidden users" ON public.hidden_users
+  FOR ALL TO authenticated USING (auth.uid() = user_id);
+```
+
+#### B. Create Report Modal Component
+New file: `src/components/moderation/ReportContentModal.tsx`
+- Dropdown with reason options (Spam, Harassment, Misinformation, etc.)
+- Optional description field
+- Submit button
+
+#### C. Create Hooks
+- `src/hooks/useContentReports.ts` - mutation to submit report
+- `src/hooks/useHiddenUsers.ts` - mutation to hide/unhide user
+
+#### D. Update Feed Query to Filter Hidden Users
+In `src/pages/Feed.tsx`, add filter:
+```typescript
+// Get hidden user IDs
+const { data: hiddenUsers } = useHiddenUsers();
+const hiddenIds = hiddenUsers?.map(h => h.hidden_user_id) || [];
+
+// Filter posts
+const filteredPosts = posts.filter(p => !hiddenIds.includes(p.author_id));
+```
+
+#### E. Wire Up Dropdown Menu Handlers
+Update PostCard and FeedPostCard to:
+1. Open ReportContentModal on "Report content" click
+2. Call `hideUser` mutation on "Hide posts from this user" click
+3. Show toast confirmation
+
+### Files Created
+- `src/components/moderation/ReportContentModal.tsx`
+- `src/hooks/useContentReports.ts`
+- `src/hooks/useHiddenUsers.ts`
+
+### Files Modified
+- `src/components/posts/PostCard.tsx`
+- `src/pages/Feed.tsx`
+- Database migration
+
+---
+
+## Issue 5: Mobile OTP and LinkedIn Connect Fixes
 
 ### Root Cause Analysis
-- **Current State:** Landing page exists but needs premium feel
-- **Reference:** CRED-like design with dark premium aesthetic, soft gradients, micro animations
 
-### Technical Implementation
+#### Mobile OTP Issue
+1. **Potential Issue 1**: `VITE_SUPABASE_URL` returning undefined in frontend
+2. **Potential Issue 2**: CORS headers in edge function may be incomplete
+3. **Potential Issue 3**: MobileVerificationModal requires re-entering phone number
 
-#### A. Landing Page Sections
-1. **Hero** - Premium gradient text, clean CTA
-2. **Value Propositions** - Animated cards with fade + translateY
-3. **Sample Cards** - Scrolling preview (already exists in LandingFeedPreview)
-4. **Social Proof** - User counts, testimonials placeholder
-5. **Sticky Start Button** - Height: 44px, Radius: 999px (pill shape)
+#### LinkedIn Connect Issue
+1. **Potential Issue 1**: Redirect URI mismatch (must be registered in LinkedIn Dev Console)
+2. **Potential Issue 2**: CORS headers incomplete in edge function
 
-#### B. Animation Refinements
-- Framer Motion: `opacity: 0 -> 1`, `y: 30 -> 0`
-- No heavy/distracting animations
-- Smooth scroll behavior
+### Technical Solution
 
-#### C. Sticky CTA Button Fix
+#### A. Fix Mobile OTP Flow
+
+1. **Update MobileVerificationModal.tsx**:
+   - Remove phone input step when triggered from Edit Profile
+   - Accept `initialPhone` prop from parent
+   - Start directly on OTP input step
+   - Add resend functionality with countdown timer
+
+2. **Update ContactVerificationSection.tsx**:
+   - Pass current phone number to modal
+   - Modal opens directly on OTP step
+
+3. **Fix Edge Function CORS**:
+   - Update `auth-mobile-verify-otp/index.ts` CORS headers to match request pattern
+
+#### B. Fix LinkedIn Connect Flow
+
+1. **Verify Redirect URI**:
+   - Must be `https://investorpaisa.com/profile/edit` (production)
+   - Or `https://[preview-id].lovable.app/profile/edit` (preview)
+
+2. **Update Edge Function CORS**:
+   - Ensure complete CORS header set in `auth-linkedin-connect/index.ts`
+
+3. **Add Error Logging**:
+   - Enhanced console logging for debugging token exchange
+
+### Files Modified
+- `src/components/profile/MobileVerificationModal.tsx`
+- `src/components/profile/edit/ContactVerificationSection.tsx`
+- `supabase/functions/auth-mobile-request-otp/index.ts` (CORS update)
+- `supabase/functions/auth-mobile-verify-otp/index.ts` (CORS update)
+- `supabase/functions/auth-linkedin-connect/index.ts` (CORS update)
+
+---
+
+## Issue 6: Post-Verification Navigation and Access Control
+
+### Current State Analysis
+- VerificationModal currently navigates to `/edit-profile?tab=verification` (wrong route)
+- Correct route is `/profile/edit`
+- Need auto-scroll to verification section
+- Access control for verified/unverified users partially implemented
+
+### Technical Solution
+
+#### A. Fix VerificationModal Navigation
+Update `src/components/auth/VerificationModal.tsx`:
+```typescript
+const handleMobileVerify = () => {
+  onOpenChange(false);
+  navigate('/profile/edit');
+  // Auto-scroll handled by URL hash or ref
+  setTimeout(() => {
+    document.getElementById('verification-section')?.scrollIntoView({ behavior: 'smooth' });
+  }, 300);
+};
+```
+
+#### B. Add Section ID to ProfileEdit
+Update `src/components/profile/edit/ContactVerificationSection.tsx`:
 ```tsx
-<Button className="h-11 rounded-full px-8 font-medium">
-  Start
-  <ArrowRight className="ml-2 h-4 w-4" />
-</Button>
+<Card id="verification-section" className="...">
 ```
 
-### Files to Update
-- `src/pages/Landing.tsx`
-- Possibly create new component: `src/components/landing/ValuePropositions.tsx`
+#### C. Enable Features on Verification
+The `useUserTier` hook already handles tier-based permissions. Ensure:
+1. `mobile_verified = true` OR `linkedin_verified = true` promotes user to `verified_user`
+2. UI updates reactively on profile change
+3. Add `refreshProfile()` call after verification success
 
-### Acceptance Criteria
-- Landing feels premium, not empty
-- Dark theme with soft gradients
-- Responsive on mobile, tablet, desktop
-- Start button is properly sized (h-11, rounded-full)
-- Smooth animations without jank
+### Files Modified
+- `src/components/auth/VerificationModal.tsx`
+- `src/components/profile/edit/ContactVerificationSection.tsx`
+- `src/components/profile/edit/SocialProfilesSection.tsx`
+- `src/pages/ProfileEdit.tsx` (add refresh logic)
 
 ---
 
-## Implementation Dependencies
+## Issue 7: Repost with Opinion Feature
 
+### Current State Analysis
+- Current repost is a simple toggle (add/remove repost)
+- No UI for adding opinion text
+- No preview of original post attached
+
+### Technical Solution
+
+#### A. Create Repost Modal Component
+New file: `src/components/posts/RepostWithOpinionModal.tsx`
+- Shows original post preview (read-only card)
+- Text input for user's opinion
+- "Repost" button
+
+#### B. Update Database Schema
+```sql
+-- Add opinion field to reposts table
+ALTER TABLE public.reposts ADD COLUMN IF NOT EXISTS opinion TEXT;
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  EXECUTION ORDER (Strict)                                       │
-├─────────────────────────────────────────────────────────────────┤
-│  1. Auth Complete Flow (Point 6)                                │
-│     └── Core signup/signin must work first                      │
-│                                                                  │
-│  2. Mobile OTP + LinkedIn (Point 5)                             │
-│     └── Depends on auth flow being stable                       │
-│                                                                  │
-│  3. Card Widget Fixes (Point 3)                                 │
-│     └── Independent UI fix                                      │
-│                                                                  │
-│  4. Email OTP (Point 2)                                         │
-│     └── Alternative auth method                                 │
-│                                                                  │
-│  5. Profile Cards (Point 4)                                     │
-│     └── Depends on Point 3 patterns                             │
-│                                                                  │
-│  6. Landing Revamp (Point 1)                                    │
-│     └── Polish layer - last priority                            │
-└─────────────────────────────────────────────────────────────────┘
+
+#### C. Update useReposts Hook
+Modify mutation to accept optional opinion text:
+```typescript
+mutationFn: async ({ postId, opinion }: { postId: string; opinion?: string })
+```
+
+#### D. Update Feed to Show Reposts with Opinion
+- Display repost card with:
+  - Reposter's opinion at top
+  - Embedded preview of original post
+  - Click on preview navigates to original post
+
+#### E. Wire Up Modal Trigger
+Update FeedPostCard repost button to open RepostWithOpinionModal instead of direct toggle
+
+### Files Created
+- `src/components/posts/RepostWithOpinionModal.tsx`
+
+### Files Modified
+- `src/hooks/useReposts.ts`
+- `src/pages/Feed.tsx`
+- `src/components/posts/PostCard.tsx`
+- Database migration for reposts.opinion column
+
+---
+
+## Implementation Order
+
+```text
++------------------------------------------------------------------------+
+|  EXECUTION ORDER (STRICT)                                              |
++------------------------------------------------------------------------+
+|  1. Issue 1 - Sign-up/Sign-in Flow                                     |
+|     - Fix auth-complete to return session                              |
+|     - Update Auth.tsx to remove magic link fallback                    |
+|     - Add verification modal trigger for new users                     |
+|                                                                         |
+|  2. Issue 5 - Mobile OTP + LinkedIn Fixes                              |
+|     - Fix CORS headers in edge functions                               |
+|     - Update MobileVerificationModal to skip phone input               |
+|     - Deploy and test                                                   |
+|                                                                         |
+|  3. Issue 6 - Navigation and Access Control                            |
+|     - Fix VerificationModal navigation to /profile/edit                |
+|     - Add auto-scroll to verification section                          |
+|     - Ensure profile refresh after verification                        |
+|                                                                         |
+|  4. Issues 2 & 3 - Card Layout Fixes (Desktop + Mobile)                |
+|     - Fix 3-dot menu positioning (absolute top-right)                  |
+|     - Fix mobile content overflow                                       |
+|     - Make footer CTAs equidistant                                      |
+|                                                                         |
+|  5. Issue 4 - Report Content + Hide User                               |
+|     - Create database tables                                            |
+|     - Create ReportContentModal                                         |
+|     - Create hooks                                                      |
+|     - Wire up handlers                                                  |
+|                                                                         |
+|  6. Issue 7 - Repost with Opinion                                      |
+|     - Add opinion column to reposts                                     |
+|     - Create RepostWithOpinionModal                                     |
+|     - Update feed to display opinions                                   |
++------------------------------------------------------------------------+
 ```
 
 ---
 
-## Files Changed Summary
+## Files Summary
 
-| File | Changes |
-|------|---------|
-| `supabase/functions/auth-complete/index.ts` | NEW - Canonical auth endpoint |
-| `supabase/functions/auth-email-request-otp/index.ts` | NEW - Email OTP request |
-| `supabase/functions/auth-email-verify-otp/index.ts` | NEW - Email OTP verify |
-| `src/contexts/AuthContext.tsx` | Add authComplete method |
-| `src/pages/Auth.tsx` | Use new auth flow, email OTP |
-| `src/pages/Landing.tsx` | Premium revamp |
-| `src/pages/Feed.tsx` | Card header alignment |
-| `src/pages/Profile.tsx` | Card header alignment |
-| `src/components/posts/PostCard.tsx` | Header structure fix |
-| `src/components/landing/LandingFeedPreview.tsx` | Header structure fix |
+| Category | New Files | Modified Files |
+|----------|-----------|----------------|
+| Auth | - | `supabase/functions/auth-complete/index.ts`, `src/pages/Auth.tsx`, `src/pages/Feed.tsx` |
+| Edge Functions | - | `auth-mobile-request-otp`, `auth-mobile-verify-otp`, `auth-linkedin-connect` |
+| Moderation | `src/components/moderation/ReportContentModal.tsx`, `src/hooks/useContentReports.ts`, `src/hooks/useHiddenUsers.ts` | - |
+| Repost | `src/components/posts/RepostWithOpinionModal.tsx` | `src/hooks/useReposts.ts` |
+| Profile | - | `src/components/auth/VerificationModal.tsx`, `src/components/profile/MobileVerificationModal.tsx`, `src/components/profile/edit/ContactVerificationSection.tsx` |
+| Cards | - | `src/components/posts/PostCard.tsx`, `src/pages/Feed.tsx`, `src/components/landing/LandingFeedPreview.tsx` |
+| Database | 2 migrations | - |
 
 ---
 
 ## QA Verification Checklist
 
-- [ ] New signup works end-to-end
-- [ ] Existing user signin works
-- [ ] Google OAuth redirect works
-- [ ] Email OTP sent and verifies
-- [ ] Mobile OTP arrives and verifies
-- [ ] LinkedIn Connect popup opens and returns
-- [ ] Card headers aligned consistently
-- [ ] No share icon in card footer
-- [ ] Profile cards match feed cards
-- [ ] Landing page feels premium
-- [ ] Sticky CTA properly sized
-- [ ] All pages responsive
+- [ ] New user email OTP -> lands on feed with verification modal
+- [ ] Existing user email OTP -> lands on feed without modal
+- [ ] Google OAuth new user -> lands on feed with verification modal
+- [ ] Google OAuth existing user -> lands on feed directly
+- [ ] Mobile OTP: Verify button opens OTP input directly (no phone re-entry)
+- [ ] Mobile OTP: OTP verifies and profile updates immediately
+- [ ] LinkedIn: Connect opens popup and returns with success
+- [ ] Verification modal -> navigates to /profile/edit, scrolls to section
+- [ ] 3-dot menu: sticky top-right on desktop
+- [ ] Mobile: no content overflow, equidistant CTAs
+- [ ] Report content: modal opens, reason submitted, toast shown
+- [ ] Hide user: posts filtered from feed, toast shown
+- [ ] Repost: modal opens with opinion input and preview
+- [ ] Clicking repost preview navigates to original post
 
 ---
 
@@ -339,5 +456,5 @@ The following will NOT be modified:
 - AI flows
 - Navigation structure
 - Design tokens
-- Any feature not explicitly listed above
+- Any feature not explicitly listed in the 7 issues above
 
