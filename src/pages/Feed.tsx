@@ -57,7 +57,8 @@ interface PostWithAuthor extends Post {
 }
 
 const PAGE_SIZE = 10;
-const TABS = ['pulse', 'trending', 'following'] as const;
+const TABS_LOGGED_IN = ['pulse', 'trending', 'following'] as const;
+const TABS_LOGGED_OUT = ['pulse', 'trending'] as const;
 
 // Skeleton loading component
 const FeedSkeleton: React.FC = () => (
@@ -304,14 +305,20 @@ const FeedPostCard: React.FC<{
                 Copy link
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleReportContent} className="text-destructive focus:text-destructive">
-                <Flag className="mr-2 h-4 w-4" />
-                Report content
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleHideUser}>
-                <EyeOff className="mr-2 h-4 w-4" />
-                Hide posts from this user
-              </DropdownMenuItem>
+              {/* Only show report for other users' posts */}
+              {post.author_id !== user?.id && (
+                <DropdownMenuItem onClick={handleReportContent} className="text-destructive focus:text-destructive">
+                  <Flag className="mr-2 h-4 w-4" />
+                  Report content
+                </DropdownMenuItem>
+              )}
+              {/* Only show hide option for OTHER users' posts - not own posts */}
+              {post.author_id !== user?.id && (
+                <DropdownMenuItem onClick={handleHideUser}>
+                  <EyeOff className="mr-2 h-4 w-4" />
+                  Hide posts from this user
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -530,6 +537,17 @@ const Feed: React.FC = () => {
   const { data: hiddenUsers } = useHiddenUsers();
   const hiddenUserIds = hiddenUsers?.map(h => h.hidden_user_id) || [];
 
+  // Determine available tabs based on login state
+  const TABS = user ? TABS_LOGGED_IN : TABS_LOGGED_OUT;
+  type TabType = typeof TABS[number];
+  
+  // If logged out user somehow has 'following' selected, reset to 'pulse'
+  useEffect(() => {
+    if (!user && activeFeedTab === 'following') {
+      setActiveFeedTab('pulse');
+    }
+  }, [user, activeFeedTab, setActiveFeedTab]);
+
   // Check if this is a new user who needs verification prompt
   useEffect(() => {
     const isNewUser = sessionStorage.getItem('ip_new_user');
@@ -541,15 +559,15 @@ const Feed: React.FC = () => {
   }, []);
 
   // Get current tab index for swipe
-  const currentTabIndex = TABS.indexOf(activeFeedTab);
+  const currentTabIndex = TABS.indexOf(activeFeedTab as any);
 
   // Handle swipe gesture
   const handleDragEnd = (_: any, info: PanInfo) => {
     const threshold = 50;
     if (info.offset.x < -threshold && currentTabIndex < TABS.length - 1) {
-      setActiveFeedTab(TABS[currentTabIndex + 1]);
+      setActiveFeedTab(TABS[currentTabIndex + 1] as 'pulse' | 'trending' | 'following');
     } else if (info.offset.x > threshold && currentTabIndex > 0) {
-      setActiveFeedTab(TABS[currentTabIndex - 1]);
+      setActiveFeedTab(TABS[currentTabIndex - 1] as 'pulse' | 'trending' | 'following');
     }
   };
 
@@ -696,9 +714,9 @@ const Feed: React.FC = () => {
         onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'trending' | 'following')} 
         className="w-full"
       >
-        {/* Sticky Tab Navigation */}
+        {/* Sticky Tab Navigation - 2 tabs for logged-out, 3 for logged-in */}
         <div className="sticky top-12 z-30 bg-background/95 backdrop-blur-sm pt-1 pb-3 -mx-2 px-2 sm:-mx-4 sm:px-4">
-          <TabsList className="grid grid-cols-3 w-full h-10 bg-secondary/50 border border-border/50 rounded-xl p-1">
+          <TabsList className={`grid w-full h-10 bg-secondary/50 border border-border/50 rounded-xl p-1 ${user ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger
               value="pulse" 
               className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
@@ -711,12 +729,14 @@ const Feed: React.FC = () => {
             >
               Trending
             </TabsTrigger>
-            <TabsTrigger 
-              value="following" 
-              className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
-            >
-              Following
-            </TabsTrigger>
+            {user && (
+              <TabsTrigger 
+                value="following" 
+                className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium"
+              >
+                Following
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
         

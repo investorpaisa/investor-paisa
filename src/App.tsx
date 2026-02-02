@@ -14,6 +14,7 @@ import Feed from "@/pages/Feed";
 import PostDetail from "@/pages/PostDetail";
 import Profile from "@/pages/Profile";
 import ProfileEdit from "@/pages/ProfileEdit";
+import PublicProfile from "@/pages/PublicProfile";
 import Inbox from "@/pages/Inbox";
 import MessagesNew from "@/pages/MessagesNew";
 import Notifications from "@/pages/Notifications";
@@ -75,6 +76,12 @@ function App() {
                 <Route path="/profile/:userId" element={
                   <MainLayout>
                     <Profile />
+                  </MainLayout>
+                } />
+                {/* Public profile route */}
+                <Route path="/u/:username" element={
+                  <MainLayout>
+                    <PublicProfile />
                   </MainLayout>
                 } />
                 <Route path="/profile/edit" element={

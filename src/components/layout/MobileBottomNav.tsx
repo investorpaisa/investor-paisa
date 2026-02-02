@@ -14,13 +14,24 @@ export const MobileBottomNav: React.FC = () => {
   // Get profile completeness from profile
   const completionPercentage = (profile as any)?.profile_completeness_score || 0;
 
-  const navigation = [
+  // Different navigation for logged-in vs logged-out users
+  // Logged-out: Home, Create (opens auth), Markets only
+  // Logged-in: Home, Markets, Create, Alerts, Profile
+  const loggedOutNavigation = [
+    { name: 'Home', href: '/feed', icon: Home },
+    { name: 'Create', center: true },
+    { name: 'Markets', href: '/markets', icon: Compass },
+  ];
+
+  const loggedInNavigation = [
     { name: 'Home', href: '/feed', icon: Home },
     { name: 'Markets', href: '/markets', icon: Compass },
     { name: 'Create', center: true },
     { name: 'Alerts', href: '/notifications', icon: Bell },
-    { name: 'Profile', href: user ? '/profile' : '/auth', useAvatar: true },
+    { name: 'Profile', href: '/profile', useAvatar: true },
   ];
+
+  const navigation = user ? loggedInNavigation : loggedOutNavigation;
 
   const isActive = (href?: string) => href && (location.pathname === href || location.pathname.startsWith(href + '/'));
 
@@ -39,18 +50,18 @@ export const MobileBottomNav: React.FC = () => {
             );
           }
 
-          // Profile with avatar ring
+          // Profile with avatar ring (only for logged-in)
           if (item.useAvatar) {
             return (
               <div 
                 key={item.name}
-                className="flex flex-col items-center justify-center h-12 w-12"
-                onClick={() => navigate(item.href || '/auth')}
+                className="flex flex-col items-center justify-center h-12 w-12 cursor-pointer"
+                onClick={() => navigate(item.href || '/profile')}
               >
                 <AvatarWithRing
                   src={profile?.avatar_url}
                   fallback={getInitials(profile?.full_name)}
-                  completionPercentage={user ? completionPercentage : 0}
+                  completionPercentage={completionPercentage}
                   size="sm"
                 />
                 <span className={`text-[9px] font-medium mt-0.5 ${
