@@ -76,6 +76,7 @@ export interface EditProfileState {
   certifications: Certification[];
   skills: string[];
   goals: string[];
+  interests: string[];
   isDirty: boolean;
 }
 
@@ -104,6 +105,7 @@ export function useEditProfile() {
     certifications: [],
     skills: [],
     goals: [],
+    interests: [],
     isDirty: false,
   });
 
@@ -207,6 +209,7 @@ export function useEditProfile() {
           privacy_skills: (profileData as any).privacy_skills !== false,
         },
         goals: (profileData as any).goals || [],
+        interests: (profileData as any).interests || [],
         isDirty: false,
       }));
     }
@@ -270,7 +273,9 @@ export function useEditProfile() {
     }));
   }, []);
 
-  // Save mutation
+  const updateInterests = useCallback((interests: string[]) => {
+    setState(prev => ({ ...prev, interests, isDirty: true }));
+  }, []);
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('Not authenticated');
@@ -288,6 +293,7 @@ export function useEditProfile() {
           twitter_url: state.profile.twitter_url || null,
           instagram_url: state.profile.instagram_url || null,
           goals: state.goals.length > 0 ? state.goals : null,
+          interests: state.interests.length > 0 ? state.interests : null,
           privacy_experience: state.profile.privacy_experience,
           privacy_education: state.profile.privacy_education,
           privacy_certifications: state.profile.privacy_certifications,
@@ -429,6 +435,7 @@ export function useEditProfile() {
     updateCertifications,
     updateSkills,
     updateGoals,
+    updateInterests,
     save: saveMutation.mutate,
     user,
     authProfile,

@@ -142,8 +142,7 @@ export const EditProfileForm = ({ profileData, refreshProfile }: EditProfileForm
         {/* Interests and Expertise */}
         <InterestsSection 
           interests={interests} 
-          setInterests={setInterests} 
-          financialCategories={financialCategories} 
+          onUpdate={setInterests}
         />
       </CardContent>
       <CardFooter className="flex justify-between">
