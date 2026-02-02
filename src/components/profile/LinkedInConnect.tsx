@@ -10,6 +10,16 @@ interface LinkedInConnectProps {
   onConnect?: () => void;
 }
 
+// Validate JSON response helper
+const parseJsonResponse = async (response: Response) => {
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    console.error('[LinkedIn] Invalid response content-type:', contentType);
+    throw new Error('Server returned invalid response. LinkedIn Connect may not be available.');
+  }
+  return response.json();
+};
+
 export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({ 
   isConnected, 
   onConnect 
@@ -42,7 +52,7 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
         }
       );
 
-      const data = await response.json();
+      const data = await parseJsonResponse(response);
 
       if (data.error) {
         if (data.message) {
@@ -61,7 +71,7 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
 
     } catch (error) {
       console.error('LinkedIn connect error:', error);
-      toast.error('Failed to connect LinkedIn');
+      toast.error(error instanceof Error ? error.message : 'Failed to connect LinkedIn');
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +114,7 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
             }
           );
 
-          const data = await response.json();
+          const data = await parseJsonResponse(response);
 
           if (data.success) {
             toast.success('LinkedIn connected successfully!');
@@ -116,7 +126,7 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
           }
         } catch (error) {
           console.error('LinkedIn callback error:', error);
-          toast.error('Failed to complete LinkedIn connection');
+          toast.error(error instanceof Error ? error.message : 'Failed to complete LinkedIn connection');
         } finally {
           setIsLoading(false);
         }

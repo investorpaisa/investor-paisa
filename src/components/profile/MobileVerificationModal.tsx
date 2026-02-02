@@ -13,6 +13,8 @@ import { Phone, Check, Loader2, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+type OTPFlowState = 'idle' | 'phone' | 'sending' | 'sent' | 'verifying' | 'success';
+
 interface MobileVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,31 +30,30 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
   onVerify,
   initialPhone,
 }) => {
-  // If initialPhone is provided and valid, start directly on OTP step
-  const hasValidInitialPhone = initialPhone && initialPhone.length >= 10;
-  const [step, setStep] = useState<'phone' | 'otp'>(hasValidInitialPhone ? 'otp' : 'phone');
+  // State machine: idle -> phone -> sending -> sent -> verifying -> success
+  const [flowState, setFlowState] = useState<OTPFlowState>('idle');
   const [phoneNumber, setPhoneNumber] = useState(initialPhone || '');
   const [otp, setOtp] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
 
-  // Reset state when modal opens with new initialPhone
+  // Determine initial step based on whether initialPhone is provided
+  const hasValidInitialPhone = initialPhone && initialPhone.length >= 10;
+
+  // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (hasValidInitialPhone) {
-        setPhoneNumber(initialPhone);
-        setStep('otp');
-        // Auto-request OTP when opening with valid phone
-        handleRequestOTPSilent(initialPhone);
-      } else {
-        setStep('phone');
-        setPhoneNumber(initialPhone || '');
-      }
+      setPhoneNumber(initialPhone || '');
       setOtp('');
       setDevOtp(null);
+      // Start in phone step if no valid initial phone, otherwise stay in phone (user must click Send OTP)
+      // Key fix: NEVER auto-request OTP - always require explicit user action
+      setFlowState(hasValidInitialPhone ? 'phone' : 'phone');
+    } else {
+      // Reset when modal closes
+      setFlowState('idle');
     }
-  }, [isOpen, initialPhone]);
+  }, [isOpen, initialPhone, hasValidInitialPhone]);
 
   // Countdown timer
   useEffect(() => {
@@ -62,55 +63,14 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
     }
   }, [countdown]);
 
-  const handleRequestOTPSilent = async (phone: string) => {
-    // Silent OTP request on modal open
-    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
-    if (!/^\+?[1-9]\d{9,14}$/.test(cleanedPhone)) {
-      setStep('phone');
-      return;
+  // Validate JSON response helper
+  const parseJsonResponse = async (response: Response) => {
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('[OTP UI] Invalid response content-type:', contentType);
+      throw new Error('Server returned invalid response. Please try again.');
     }
-
-    setIsLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Please log in first');
-        setStep('phone');
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ phoneNumber: cleanedPhone }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        setCountdown(60);
-        if (data.dev_otp) {
-          setDevOtp(data.dev_otp);
-        }
-        if (data.smsSent) {
-          toast.success('OTP sent to your phone!');
-        }
-      } else {
-        setStep('phone');
-        toast.error(data.error || 'Failed to send OTP');
-      }
-    } catch (error) {
-      console.error('[OTP UI] Request error:', error);
-      setStep('phone');
-    } finally {
-      setIsLoading(false);
-    }
+    return response.json();
   };
 
   const handleRequestOTP = async () => {
@@ -125,12 +85,14 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       return;
     }
 
-    setIsLoading(true);
+    setFlowState('sending');
     setDevOtp(null);
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please log in first');
+        setFlowState('phone');
         return;
       }
 
@@ -146,7 +108,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         }
       );
 
-      const data = await response.json();
+      const data = await parseJsonResponse(response);
 
       if (data.success) {
         if (data.smsSent) {
@@ -154,19 +116,19 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         } else {
           toast.success('OTP generated');
         }
-        setStep('otp');
+        setFlowState('sent');
         setCountdown(60);
         if (data.dev_otp) {
           setDevOtp(data.dev_otp);
         }
       } else {
         toast.error(data.error || 'Failed to send OTP');
+        setFlowState('phone');
       }
     } catch (error) {
       console.error('[OTP UI] Request error:', error);
-      toast.error('Failed to request OTP');
-    } finally {
-      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to request OTP');
+      setFlowState('phone');
     }
   };
 
@@ -176,11 +138,13 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       return;
     }
 
-    setIsLoading(true);
+    setFlowState('verifying');
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please log in first');
+        setFlowState('sent');
         return;
       }
 
@@ -198,25 +162,29 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         }
       );
 
-      const data = await response.json();
+      const data = await parseJsonResponse(response);
 
       if (data.success) {
+        setFlowState('success');
         toast.success('Mobile number verified!');
         onVerify?.();
-        onClose();
-        // Reset state
-        setStep('phone');
-        setPhoneNumber('');
-        setOtp('');
-        setDevOtp(null);
+        // Close after short delay to show success state
+        setTimeout(() => {
+          onClose();
+          // Reset state
+          setFlowState('idle');
+          setPhoneNumber('');
+          setOtp('');
+          setDevOtp(null);
+        }, 500);
       } else {
         toast.error(data.error || 'Invalid OTP');
+        setFlowState('sent');
       }
     } catch (error) {
       console.error('[OTP UI] Verify error:', error);
-      toast.error('Failed to verify OTP');
-    } finally {
-      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to verify OTP');
+      setFlowState('sent');
     }
   };
 
@@ -226,11 +194,13 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
     setDevOtp(null);
     const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
     
-    setIsLoading(true);
+    setFlowState('sending');
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please log in first');
+        setFlowState('sent');
         return;
       }
 
@@ -246,28 +216,30 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         }
       );
 
-      const data = await response.json();
+      const data = await parseJsonResponse(response);
 
       if (data.success) {
         toast.success('New OTP sent!');
+        setFlowState('sent');
         setCountdown(60);
         if (data.dev_otp) {
           setDevOtp(data.dev_otp);
         }
       } else {
         toast.error(data.error || 'Failed to resend OTP');
+        setFlowState('sent');
       }
     } catch (error) {
-      toast.error('Failed to resend OTP');
-    } finally {
-      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to resend OTP');
+      setFlowState('sent');
     }
   };
 
   const handleClose = () => {
     onClose();
+    // Reset after animation
     setTimeout(() => {
-      setStep(hasValidInitialPhone ? 'otp' : 'phone');
+      setFlowState('idle');
       setOtp('');
       setDevOtp(null);
     }, 200);
@@ -278,6 +250,10 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
     ? phoneNumber 
     : phoneNumber.length > 0 ? `+${phoneNumber}` : '';
 
+  // Determine if we're in the OTP entry phase
+  const isOtpPhase = flowState === 'sent' || flowState === 'verifying';
+  const isLoading = flowState === 'sending' || flowState === 'verifying';
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
@@ -287,14 +263,14 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
             Mobile Verification
           </DialogTitle>
           <DialogDescription>
-            {step === 'phone' 
-              ? 'Enter your mobile number to receive a verification code'
-              : `Enter the 6-digit code sent to ${displayPhone}`
+            {isOtpPhase 
+              ? `Enter the 6-digit code sent to ${displayPhone}`
+              : 'Enter your mobile number to receive a verification code'
             }
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'phone' ? (
+        {!isOtpPhase ? (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
@@ -312,6 +288,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
                     setPhoneNumber(value ? `+91${value}` : '');
                   }}
                   className="flex-1 h-10 px-3 rounded-xl bg-secondary/50 border border-border/50 text-sm focus:border-primary focus:outline-none"
+                  disabled={isLoading}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
@@ -333,7 +310,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         ) : (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center space-y-4">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
+              <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus disabled={flowState === 'verifying'}>
                 <InputOTPGroup>
                   <InputOTPSlot index={0} className="w-10 h-12 text-lg" />
                   <InputOTPSlot index={1} className="w-10 h-12 text-lg" />
@@ -358,7 +335,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
               disabled={isLoading || otp.length !== 6}
               className="w-full rounded-xl gap-2"
             >
-              {isLoading ? (
+              {flowState === 'verifying' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
@@ -371,11 +348,12 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
             <div className="flex justify-between items-center text-sm">
               <button
                 onClick={() => {
-                  setStep('phone');
+                  setFlowState('phone');
                   setOtp('');
                   setDevOtp(null);
                 }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                disabled={isLoading}
+                className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 ← Change number
               </button>
