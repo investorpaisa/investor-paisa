@@ -33,6 +33,7 @@ const Auth: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
@@ -179,6 +180,7 @@ const Auth: React.FC = () => {
           access_token: completeResult.session.access_token,
           refresh_token: completeResult.session.refresh_token,
         });
+        setNeedsEmailConfirm(false);
         setStep('success');
         toast.success('Welcome to InvestorPaisa!');
         setTimeout(() => navigate('/feed'), 1500);
@@ -197,9 +199,9 @@ const Auth: React.FC = () => {
         if (signInError) {
           console.error('[Auth] Sign in fallback error:', signInError);
           // Even if this fails, user was created successfully
-          // Just show success message
         }
         
+        setNeedsEmailConfirm(true);
         setStep('success');
         toast.success('Check your email to complete sign in!');
       }
@@ -478,10 +480,25 @@ const Auth: React.FC = () => {
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 0.5 }}
                 >
-                  <Check className="w-7 h-7 text-primary" />
+                  {needsEmailConfirm ? (
+                    <Mail className="w-7 h-7 text-primary" />
+                  ) : (
+                    <Check className="w-7 h-7 text-primary" />
+                  )}
                 </motion.div>
-                <h2 className="text-xl font-bold mb-2 font-heading">Welcome!</h2>
-                <p className="text-muted-foreground text-sm">Redirecting to your feed...</p>
+                <h2 className="text-xl font-bold mb-2 font-heading">
+                  {needsEmailConfirm ? 'Check your email!' : 'Welcome!'}
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  {needsEmailConfirm 
+                    ? `We sent a sign-in link to ${email}` 
+                    : 'Redirecting to your feed...'}
+                </p>
+                {needsEmailConfirm && (
+                  <p className="text-muted-foreground text-xs mt-2">
+                    Click the link in your email to complete sign in
+                  </p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
