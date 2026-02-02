@@ -54,13 +54,36 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
     : '';
 
   return (
-    <CardHeader className="p-3 sm:p-4 pb-2">
-      {/* MANDATORY HEADER STRUCTURE:
-          [ Avatar + FullName + @username + time ] ---- [ Type Badge ] [ 3-dot Menu ]
-          - Outer: flex, justify-between, items-center
-          - Left: Author info (all on single line with truncation)
-          - Right: Type Badge + 3-dot menu (NO bookmark in header)
-      */}
+    <CardHeader className="p-3 sm:p-4 pb-2 pr-12 relative">
+      {/* Absolute 3-dot menu - sticky top right */}
+      <div className="absolute top-2 right-2 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => {
+              e.stopPropagation();
+              onShare?.(post);
+            }}>
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
+            </DropdownMenuItem>
+            <DropdownMenuItem>Report content</DropdownMenuItem>
+            <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
+            <DropdownMenuItem>Copy link</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* HEADER: [ Avatar + FullName + @username + time ] ---- [ Type Badge ] */}
       <div className="flex items-center justify-between gap-2">
         {/* LEFT: Author info - all in one line */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -73,7 +96,7 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
           </Avatar>
           
           {/* Name, username, time - compact single line */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden flex-wrap">
             {/* Name - truncate */}
             <span 
               className="font-medium text-sm truncate max-w-[100px] sm:max-w-[140px] hover:underline cursor-pointer" 
@@ -100,52 +123,23 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
           </div>
         </div>
         
-        {/* RIGHT: Type Badge + 3-dot menu (bookmark moved to footer) */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Type Badge - right aligned */}
-          {typeLabel && (
-            <Badge 
-              variant="outline" 
-              className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5"
-            >
-              {typeLabel}
-            </Badge>
-          )}
-          {post.category && !typeLabel && (
-            <Badge 
-              variant="outline" 
-              className="bg-primary/10 text-primary border-primary/30 text-[10px] h-5 px-1.5"
-            >
-              {post.category.name}
-            </Badge>
-          )}
-          
-          {/* 3-dot menu - ALWAYS right */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => {
-                e.stopPropagation();
-                onShare?.(post);
-              }}>
-                <Share2 className="mr-2 h-4 w-4" />
-                Share
-              </DropdownMenuItem>
-              <DropdownMenuItem>Report content</DropdownMenuItem>
-              <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
-              <DropdownMenuItem>Copy link</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* RIGHT: Type Badge only (3-dot menu is absolute positioned) */}
+        {typeLabel && (
+          <Badge 
+            variant="outline" 
+            className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5 shrink-0"
+          >
+            {typeLabel}
+          </Badge>
+        )}
+        {post.category && !typeLabel && (
+          <Badge 
+            variant="outline" 
+            className="bg-primary/10 text-primary border-primary/30 text-[10px] h-5 px-1.5 shrink-0"
+          >
+            {post.category.name}
+          </Badge>
+        )}
       </div>
     </CardHeader>
   );
@@ -158,11 +152,11 @@ interface PostCardContentProps {
 
 const PostCardContent: React.FC<PostCardContentProps> = ({ post, onClick }) => {
   return (
-    <CardContent className="p-3 sm:p-4 pt-1 cursor-pointer text-left" onClick={() => onClick?.(post)}>
-      {/* Title - 2 line truncate (MANDATORY) */}
-      <h3 className="text-sm sm:text-base font-medium mb-1 line-clamp-2 text-left">{post.title}</h3>
-      {/* Description - 3 line truncate (MANDATORY) */}
-      <p className="text-muted-foreground text-xs sm:text-sm line-clamp-3 text-left">{post.content}</p>
+    <CardContent className="p-3 sm:p-4 pt-1 cursor-pointer text-left overflow-hidden" onClick={() => onClick?.(post)}>
+      {/* Title - 2 line truncate with word break */}
+      <h3 className="text-sm sm:text-base font-medium mb-1 line-clamp-2 text-left break-words">{post.title}</h3>
+      {/* Description - 3 line truncate with word break */}
+      <p className="text-muted-foreground text-xs sm:text-sm line-clamp-3 text-left break-words">{post.content}</p>
     </CardContent>
   );
 };
@@ -238,7 +232,7 @@ const PostCard: React.FC<PostCardProps> = ({
 }) => {
   return (
     <Card 
-      className={`border border-border/50 shadow-sm hover:border-primary/30 transition-all ${isClickable ? 'cursor-pointer' : ''} ${className || ''}`} 
+      className={`border border-border/50 shadow-sm hover:border-primary/30 transition-all relative ${isClickable ? 'cursor-pointer' : ''} ${className || ''}`} 
       onClick={() => isClickable && onClick?.(post)}
     >
       <PostCardHeader post={post} onClick={onClick} onBookmark={onBookmark} onShare={onShare} />

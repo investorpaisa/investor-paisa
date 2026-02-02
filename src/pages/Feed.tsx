@@ -9,23 +9,27 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw, Repeat } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw, Repeat, Flag, EyeOff, Link } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
-import { useToggleRepost, useIsReposted } from '@/hooks/useReposts';
+import { useIsReposted, useCreateRepostWithOpinion, useRemoveRepost } from '@/hooks/useReposts';
+import { useHiddenUsers, useToggleHideUser } from '@/hooks/useHiddenUsers';
 import { toast } from 'sonner';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useUIStore } from '@/stores/uiStore';
 import { trackEvents } from '@/services/analytics/googleAnalytics';
 import { TrendingStructuredFeed } from '@/components/feed/TrendingStructuredFeed';
 import { VerificationModal } from '@/components/auth/VerificationModal';
+import { ReportContentModal } from '@/components/moderation/ReportContentModal';
+import { RepostWithOpinionModal } from '@/components/posts/RepostWithOpinionModal';
 
 interface Post {
   id: string;
@@ -96,11 +100,15 @@ const FeedPostCard: React.FC<{
   const navigate = useNavigate();
   const toggleReaction = useToggleReaction();
   const toggleBookmark = useToggleBookmark();
-  const toggleRepost = useToggleRepost();
+  const createRepostWithOpinion = useCreateRepostWithOpinion();
+  const removeRepost = useRemoveRepost();
+  const toggleHideUser = useToggleHideUser();
   
   const [localUpvoteCount, setLocalUpvoteCount] = useState((post as any).upvote_count || 0);
   const [localDownvoteCount, setLocalDownvoteCount] = useState((post as any).downvote_count || 0);
   const [isVoteAnimating, setIsVoteAnimating] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showRepostModal, setShowRepostModal] = useState(false);
   
   const { data: userReactions } = useUserReaction(post.id, 'post');
   const { data: isBookmarked } = useIsBookmarked(post.id);
@@ -176,13 +184,54 @@ const FeedPostCard: React.FC<{
     });
   };
 
-  const handleRepost = (e: React.MouseEvent) => {
+  const handleRepostClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
       navigate('/auth');
       return;
     }
-    toggleRepost.mutate(post.id);
+    if (isReposted) {
+      // If already reposted, remove it
+      removeRepost.mutate(post.id);
+    } else {
+      // Open repost modal for new repost
+      setShowRepostModal(true);
+    }
+  };
+
+  const handleRepostSubmit = async (postId: string, opinion: string | undefined) => {
+    await createRepostWithOpinion.mutateAsync({ postId, opinion });
+  };
+
+  const handleReportContent = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    setShowReportModal(true);
+  };
+
+  const handleHideUser = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    if (post.author_id) {
+      toggleHideUser.mutate(post.author_id);
+    }
+  };
+
+  const handleCopyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/post/${post.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied to clipboard');
+    } catch {
+      toast.error('Failed to copy link');
+    }
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -234,11 +283,41 @@ const FeedPostCard: React.FC<{
       transition={{ duration: 0.2 }}
     >
       <Card 
-        className="border border-border/50 bg-card/50 hover:border-primary/30 transition-all cursor-pointer"
+        className="border border-border/50 bg-card/50 hover:border-primary/30 transition-all cursor-pointer relative"
         onClick={() => onPostClick(post.id)}
       >
-        <CardHeader className="p-3 pb-2">
-          {/* MANDATORY HEADER: [ Avatar + Name + @username + time ] ---- [ Type Badge ] [ ... ] */}
+        {/* Absolute 3-dot menu - sticky top right */}
+        <div className="absolute top-2 right-2 z-10">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 bg-background/80 hover:bg-background">
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={(e) => handleShare(e as any)}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCopyLink}>
+                <Link className="mr-2 h-4 w-4" />
+                Copy link
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleReportContent} className="text-destructive focus:text-destructive">
+                <Flag className="mr-2 h-4 w-4" />
+                Report content
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleHideUser}>
+                <EyeOff className="mr-2 h-4 w-4" />
+                Hide posts from this user
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <CardHeader className="p-3 pb-2 pr-12">
+          {/* HEADER: [ Avatar + Name + @username + time ] ---- [ Type Badge ] */}
           <div className="flex items-center justify-between gap-2">
             {/* LEFT: Author info - single line */}
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -255,8 +334,8 @@ const FeedPostCard: React.FC<{
                 </AvatarFallback>
               </Avatar>
               
-              {/* Name, username, time - compact single line */}
-              <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+              {/* Name, username, time - compact single line with word break */}
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden flex-wrap">
                 <span
                   className="font-medium text-xs sm:text-sm hover:underline cursor-pointer truncate max-w-[100px] sm:max-w-[140px]"
                   onClick={(e) => {
@@ -279,105 +358,128 @@ const FeedPostCard: React.FC<{
               </div>
             </div>
             
-            {/* RIGHT: Type Badge + 3-dot menu */}
-            <div className="flex items-center gap-1 shrink-0">
-              <Badge variant="outline" className="text-[10px] capitalize bg-primary/10 text-primary border-primary/30 h-5 px-1.5">
-                {getTypeLabel()}
-              </Badge>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={(e) => handleShare(e as any)}>Share</DropdownMenuItem>
-                  <DropdownMenuItem>Report content</DropdownMenuItem>
-                  <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => handleShare(e as any)}>Copy link</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            {/* RIGHT: Type Badge only (3-dot menu is absolute positioned) */}
+            <Badge variant="outline" className="text-[10px] capitalize bg-primary/10 text-primary border-primary/30 h-5 px-1.5 shrink-0">
+              {getTypeLabel()}
+            </Badge>
           </div>
         </CardHeader>
         
-        <CardContent className="p-3 pt-1 text-left">
-          {/* Title - 2 line clamp */}
-          {post.title && <h3 className="text-sm font-medium mb-1 line-clamp-2">{post.title}</h3>}
-          {/* Body - 3 line clamp */}
-          {post.body && <p className="text-muted-foreground text-xs whitespace-pre-wrap line-clamp-3">{post.body}</p>}
+        <CardContent className="p-3 pt-1 text-left overflow-hidden">
+          {/* Title - 2 line clamp with word break */}
+          {post.title && <h3 className="text-sm font-medium mb-1 line-clamp-2 break-words">{post.title}</h3>}
+          {/* Body - 3 line clamp with word break */}
+          {post.body && <p className="text-muted-foreground text-xs whitespace-pre-wrap line-clamp-3 break-words overflow-wrap-anywhere">{post.body}</p>}
         </CardContent>
         
-        <CardFooter className="p-3 pt-0 flex justify-between">
-          {/* Left: Upvote/Downvote + Comments + Repost - equidistant */}
-          <div className="flex items-center gap-1">
+        {/* Footer: Mobile - equidistant CTAs using justify-between */}
+        <CardFooter className="p-3 pt-0">
+          <div className="flex items-center justify-between w-full">
+            {/* Upvote */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 px-1.5 ${isUpvoted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${isUpvoted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={handleUpvote}
               disabled={toggleReaction.isPending}
             >
               <motion.div
                 animate={isVoteAnimating ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 0.2 }}
+                className="flex items-center gap-0.5"
               >
                 <ArrowUp className="h-4 w-4" />
+                <span className={`text-xs ${voteScore > 0 ? 'text-primary' : ''}`}>
+                  {localUpvoteCount > 0 ? localUpvoteCount : ''}
+                </span>
               </motion.div>
             </Button>
             
-            <span className={`text-xs font-medium min-w-[20px] text-center ${
-              voteScore > 0 ? 'text-primary' : voteScore < 0 ? 'text-destructive' : 'text-muted-foreground'
-            }`}>
-              {voteScore}
-            </span>
-            
+            {/* Downvote */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 px-1.5 ${isDownvoted ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${isDownvoted ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={handleDownvote}
               disabled={toggleReaction.isPending}
             >
-              <ArrowDown className="h-4 w-4" />
+              <div className="flex items-center gap-0.5">
+                <ArrowDown className="h-4 w-4" />
+                <span className={`text-xs ${localDownvoteCount > 0 ? 'text-destructive' : ''}`}>
+                  {localDownvoteCount > 0 ? localDownvoteCount : ''}
+                </span>
+              </div>
             </Button>
             
+            {/* Comment */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground ml-1"
+              className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
                 onPostClick(post.id);
               }}
             >
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span>{post.comment_count || 0}</span>
+              <div className="flex items-center gap-0.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="text-xs">{post.comment_count || 0}</span>
+              </div>
             </Button>
             
+            {/* Repost */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 px-1.5 ${isReposted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={handleRepost}
-              disabled={toggleRepost.isPending}
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${isReposted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={handleRepostClick}
+              disabled={createRepostWithOpinion.isPending || removeRepost.isPending}
             >
               <Repeat className="h-3.5 w-3.5" />
             </Button>
+            
+            {/* Bookmark/Save */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${isBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={handleSave}
+              disabled={toggleBookmark.isPending}
+            >
+              <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+            </Button>
           </div>
-          
-          {/* Right: Bookmark only (Share moved to 3-dot menu) */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`h-7 px-2 ${isBookmarked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={handleSave}
-            disabled={toggleBookmark.isPending}
-          >
-            <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
-          </Button>
         </CardFooter>
       </Card>
+
+      {/* Report Content Modal */}
+      <ReportContentModal
+        open={showReportModal}
+        onOpenChange={setShowReportModal}
+        entityId={post.id}
+        entityType="post"
+        contentPreview={post.title || post.body || undefined}
+      />
+
+      {/* Repost with Opinion Modal */}
+      <RepostWithOpinionModal
+        open={showRepostModal}
+        onOpenChange={setShowRepostModal}
+        post={{
+          id: post.id,
+          title: post.title,
+          body: post.body,
+          type: post.type,
+          created_at: post.created_at,
+          author: post.author ? {
+            full_name: post.author.full_name,
+            username: post.author.username,
+            avatar_url: post.author.avatar_url,
+          } : null,
+        }}
+        onRepost={handleRepostSubmit}
+        isLoading={createRepostWithOpinion.isPending}
+      />
     </motion.div>
   );
 };
@@ -423,6 +525,10 @@ const Feed: React.FC = () => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  
+  // Get hidden users to filter from feed
+  const { data: hiddenUsers } = useHiddenUsers();
+  const hiddenUserIds = hiddenUsers?.map(h => h.hidden_user_id) || [];
 
   // Check if this is a new user who needs verification prompt
   useEffect(() => {
@@ -579,7 +685,9 @@ const Feed: React.FC = () => {
     navigate(`/post/${postId}`);
   };
 
-  const allPosts = data?.pages.flatMap(page => page.posts) || [];
+  // Filter out posts from hidden users
+  const allPosts = (data?.pages.flatMap(page => page.posts) || [])
+    .filter(post => !hiddenUserIds.includes(post.author_id));
 
   return (
     <div className="max-w-2xl mx-auto py-3 px-2 sm:px-4">
