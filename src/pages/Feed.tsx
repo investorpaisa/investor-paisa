@@ -214,6 +214,17 @@ const FeedPostCard: React.FC<{
 
   const voteScore = localUpvoteCount - localDownvoteCount;
 
+  // Format time - single line
+  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
+
+  // Get type label
+  const getTypeLabel = () => {
+    if (post.type === 'question') return 'Question';
+    if (post.type === 'opinion') return 'Opinion';
+    if (post.type === 'news') return 'News';
+    return post.type;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -226,10 +237,12 @@ const FeedPostCard: React.FC<{
         onClick={() => onPostClick(post.id)}
       >
         <CardHeader className="p-3 pb-2">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-2.5">
+          {/* MANDATORY HEADER: [ Avatar + Name + @username + time ] ---- [ Type Badge ] [ ... ] */}
+          <div className="flex items-center justify-between gap-2">
+            {/* LEFT: Author info - single line */}
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <Avatar 
-                className="h-9 w-9 cursor-pointer"
+                className="h-9 w-9 cursor-pointer shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   onProfileClick(post.author?.username || null);
@@ -240,31 +253,35 @@ const FeedPostCard: React.FC<{
                   {post.author?.full_name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <div className="flex items-center gap-1">
-                  <h4 
-                    className="font-medium text-xs sm:text-sm hover:underline cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onProfileClick(post.author?.username || null);
-                    }}
-                  >
-                    {post.author?.full_name || 'Anonymous'}
-                  </h4>
-                  {post.author?.is_verified && (
-                    <TrendingUp className="h-3 w-3 text-primary" />
-                  )}
-                </div>
-                <div className="flex items-center text-[10px] sm:text-xs text-muted-foreground">
-                  <span>@{post.author?.username || 'user'}</span>
-                  <span className="mx-1.5">•</span>
-                  <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
-                </div>
+              
+              {/* Name, username, time - compact single line */}
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+                <span
+                  className="font-medium text-xs sm:text-sm hover:underline cursor-pointer truncate max-w-[100px] sm:max-w-[140px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onProfileClick(post.author?.username || null);
+                  }}
+                >
+                  {post.author?.full_name || 'Anonymous'}
+                </span>
+                {post.author?.is_verified && (
+                  <TrendingUp className="h-3 w-3 text-primary shrink-0" />
+                )}
+                <span className="text-[10px] sm:text-xs text-muted-foreground truncate max-w-[60px] sm:max-w-[80px]">
+                  @{post.author?.username || 'user'}
+                </span>
+                <span className="text-muted-foreground shrink-0">•</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground shrink-0 whitespace-nowrap">
+                  {timeAgo}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Badge variant="outline" className="text-[10px] capitalize bg-secondary/50 h-5 px-1.5">
-                {post.type}
+            
+            {/* RIGHT: Type Badge + 3-dot menu */}
+            <div className="flex items-center gap-1 shrink-0">
+              <Badge variant="outline" className="text-[10px] capitalize bg-primary/10 text-primary border-primary/30 h-5 px-1.5">
+                {getTypeLabel()}
               </Badge>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -273,6 +290,7 @@ const FeedPostCard: React.FC<{
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={(e) => handleShare(e as any)}>Share</DropdownMenuItem>
                   <DropdownMenuItem>Report content</DropdownMenuItem>
                   <DropdownMenuItem>Hide posts from this user</DropdownMenuItem>
                   <DropdownMenuItem onClick={(e) => handleShare(e as any)}>Copy link</DropdownMenuItem>
@@ -281,17 +299,21 @@ const FeedPostCard: React.FC<{
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-3 pt-1">
+        
+        <CardContent className="p-3 pt-1 text-left">
+          {/* Title - 2 line clamp */}
           {post.title && <h3 className="text-sm font-medium mb-1 line-clamp-2">{post.title}</h3>}
+          {/* Body - 3 line clamp */}
           {post.body && <p className="text-muted-foreground text-xs whitespace-pre-wrap line-clamp-3">{post.body}</p>}
         </CardContent>
+        
         <CardFooter className="p-3 pt-0 flex justify-between">
+          {/* Left: Upvote/Downvote + Comments + Repost - equidistant */}
           <div className="flex items-center gap-1">
-            {/* Upvote button */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 px-2 ${isUpvoted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`h-7 px-1.5 ${isUpvoted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={handleUpvote}
               disabled={toggleReaction.isPending}
             >
@@ -303,29 +325,26 @@ const FeedPostCard: React.FC<{
               </motion.div>
             </Button>
             
-            {/* Vote score */}
-            <span className={`text-sm font-medium min-w-[24px] text-center ${
+            <span className={`text-xs font-medium min-w-[20px] text-center ${
               voteScore > 0 ? 'text-primary' : voteScore < 0 ? 'text-destructive' : 'text-muted-foreground'
             }`}>
               {voteScore}
             </span>
             
-            {/* Downvote button */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 px-2 ${isDownvoted ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`h-7 px-1.5 ${isDownvoted ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={handleDownvote}
               disabled={toggleReaction.isPending}
             >
               <ArrowDown className="h-4 w-4" />
             </Button>
             
-            {/* Comments */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground ml-2"
+              className="gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground ml-1"
               onClick={(e) => {
                 e.stopPropagation();
                 onPostClick(post.id);
@@ -335,27 +354,18 @@ const FeedPostCard: React.FC<{
               <span>{post.comment_count || 0}</span>
             </Button>
             
-            {/* Repost */}
             <Button 
               variant="ghost" 
               size="sm" 
-              className={`h-7 px-2 ${isReposted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`h-7 px-1.5 ${isReposted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               onClick={handleRepost}
               disabled={toggleRepost.isPending}
             >
               <Repeat className="h-3.5 w-3.5" />
             </Button>
-            
-            {/* Share */}
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-7 px-2 text-muted-foreground hover:text-foreground"
-              onClick={handleShare}
-            >
-              <Share2 className="h-3.5 w-3.5" />
-            </Button>
           </div>
+          
+          {/* Right: Bookmark only (Share moved to 3-dot menu) */}
           <Button 
             variant="ghost" 
             size="sm" 

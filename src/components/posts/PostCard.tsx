@@ -1,7 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Heart, MessageSquare, Bookmark, MoreHorizontal, TrendingUp, Share2 } from 'lucide-react';
@@ -12,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { formatDistanceToNow } from 'date-fns';
 
 import { EnhancedPost } from '@/types';
 
@@ -49,69 +48,85 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onBookma
 
   const typeLabel = getTypeLabel();
 
+  // Format time - single line, no wrap
+  const timeAgo = post.created_at 
+    ? formatDistanceToNow(new Date(post.created_at), { addSuffix: true })
+    : '';
+
   return (
-    <CardHeader className="p-4 pb-2">
-      {/* Row 1: Author info LEFT | Type badge + Bookmark + 3-dots RIGHT */}
-      <div className="flex items-center justify-between">
-        {/* Left: Author */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Avatar className="h-10 w-10 shrink-0">
+    <CardHeader className="p-3 sm:p-4 pb-2">
+      {/* MANDATORY HEADER STRUCTURE:
+          [ Avatar + FullName + @username + time ] ---- [ Type Badge ] [ 3-dot Menu ]
+          - Outer: flex, justify-between, items-center
+          - Left: Author info (all on single line with truncation)
+          - Right: Type Badge + 3-dot menu (NO bookmark in header)
+      */}
+      <div className="flex items-center justify-between gap-2">
+        {/* LEFT: Author info - all in one line */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <Avatar className="h-9 w-9 shrink-0">
             <AvatarImage src={post.author?.avatar_url || undefined} alt={post.author?.full_name || 'Profile'} />
-            <AvatarFallback>{post.author?.full_name?.charAt(0) || 'U'}{post.author?.full_name?.split(' ')[1]?.charAt(0) || ''}</AvatarFallback>
+            <AvatarFallback className="text-xs">
+              {post.author?.full_name?.charAt(0) || 'U'}
+              {post.author?.full_name?.split(' ')[1]?.charAt(0) || ''}
+            </AvatarFallback>
           </Avatar>
-          <div className="min-w-0 text-left">
-            <div className="flex items-center gap-1">
-              <h4 className="font-medium truncate hover:underline cursor-pointer text-sm" onClick={(e) => { handleProfileClick(e); onClick?.(post); }}>
-                {post.author?.full_name || 'Unknown User'}
-              </h4>
-              {post.author?.is_verified && (
-                <span className="text-primary shrink-0">
-                  <TrendingUp className="h-3 w-3" />
-                </span>
-              )}
-            </div>
-            <div className="flex items-center text-xs text-muted-foreground truncate">
-              <span className="truncate">@{post.author?.username || 'username'}</span>
-              <span className="mx-1.5 shrink-0">•</span>
-              <span className="shrink-0">{new Date(post.created_at).toLocaleDateString()}</span>
-            </div>
+          
+          {/* Name, username, time - compact single line */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+            {/* Name - truncate */}
+            <span 
+              className="font-medium text-sm truncate max-w-[100px] sm:max-w-[140px] hover:underline cursor-pointer" 
+              onClick={(e) => { handleProfileClick(e); onClick?.(post); }}
+            >
+              {post.author?.full_name || 'Unknown User'}
+            </span>
+            
+            {post.author?.is_verified && (
+              <TrendingUp className="h-3 w-3 text-primary shrink-0" />
+            )}
+            
+            {/* Username - truncate */}
+            <span className="text-xs text-muted-foreground truncate max-w-[80px] sm:max-w-[100px]">
+              @{post.author?.username || 'user'}
+            </span>
+            
+            <span className="text-muted-foreground shrink-0">•</span>
+            
+            {/* Time - no wrap, single line */}
+            <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
+              {timeAgo}
+            </span>
           </div>
         </div>
         
-        {/* Right: Type Badge + Bookmark + 3-dot menu */}
-        <div className="flex items-center gap-1 shrink-0 ml-2">
-          {/* Type Badge */}
+        {/* RIGHT: Type Badge + 3-dot menu (bookmark moved to footer) */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Type Badge - right aligned */}
           {typeLabel && (
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5 shrink-0">
+            <Badge 
+              variant="outline" 
+              className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5"
+            >
               {typeLabel}
             </Badge>
           )}
           {post.category && !typeLabel && (
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] h-5 px-1.5 shrink-0">
+            <Badge 
+              variant="outline" 
+              className="bg-primary/10 text-primary border-primary/30 text-[10px] h-5 px-1.5"
+            >
               {post.category.name}
             </Badge>
           )}
           
-          {/* Bookmark */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`h-8 w-8 ${post.isBookmarked ? 'text-primary' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onBookmark?.(post);
-            }}
-          >
-            <Bookmark className="h-4 w-4" fill={post.isBookmarked ? "currentColor" : "none"} />
-          </Button>
-          
-          {/* 3-dot menu - ALWAYS top-right */}
+          {/* 3-dot menu - ALWAYS right */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8"
+                className="h-7 w-7"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -143,11 +158,11 @@ interface PostCardContentProps {
 
 const PostCardContent: React.FC<PostCardContentProps> = ({ post, onClick }) => {
   return (
-    <CardContent className="p-4 pt-2 cursor-pointer text-left" onClick={() => onClick?.(post)}>
-      {/* Title - 2 line truncate */}
-      <h3 className="text-base font-medium mb-1 line-clamp-2 text-left">{post.title}</h3>
-      {/* Description - 3 line truncate */}
-      <p className="text-muted-foreground text-sm line-clamp-3 text-left">{post.content}</p>
+    <CardContent className="p-3 sm:p-4 pt-1 cursor-pointer text-left" onClick={() => onClick?.(post)}>
+      {/* Title - 2 line truncate (MANDATORY) */}
+      <h3 className="text-sm sm:text-base font-medium mb-1 line-clamp-2 text-left">{post.title}</h3>
+      {/* Description - 3 line truncate (MANDATORY) */}
+      <p className="text-muted-foreground text-xs sm:text-sm line-clamp-3 text-left">{post.content}</p>
     </CardContent>
   );
 };
@@ -156,36 +171,54 @@ interface PostCardFooterProps {
   post: EnhancedPost;
   onLike?: (post: EnhancedPost) => void;
   onComment?: (post: EnhancedPost) => void;
+  onBookmark?: (post: EnhancedPost) => void;
 }
 
-// Footer: Only like and comment actions - Share moved to 3-dot menu
-const PostCardFooter: React.FC<PostCardFooterProps> = ({ post, onLike, onComment }) => {
+// Footer: Like + Comment on left (equidistant), Bookmark on right
+// Share icon REMOVED from footer (moved to 3-dot menu)
+const PostCardFooter: React.FC<PostCardFooterProps> = ({ post, onLike, onComment, onBookmark }) => {
   return (
-    <CardFooter className="p-4 pt-0">
-      <div className="flex items-center justify-start gap-6 w-full">
+    <CardFooter className="p-3 sm:p-4 pt-0">
+      <div className="flex items-center justify-between w-full">
+        {/* Left: Actions - equidistant */}
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`gap-1.5 h-8 px-2 ${post.isLiked ? 'text-primary' : 'text-muted-foreground'}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLike?.(post);
+            }}
+          >
+            <Heart className="h-4 w-4" fill={post.isLiked ? "currentColor" : "none"} />
+            <span className="text-xs">{post.like_count || 0}</span>
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="gap-1.5 h-8 px-2 text-muted-foreground" 
+            onClick={(e) => {
+              e.stopPropagation();
+              onComment?.(post);
+            }}
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span className="text-xs">{post.comment_count || 0}</span>
+          </Button>
+        </div>
+        
+        {/* Right: Bookmark */}
         <Button
           variant="ghost"
           size="sm"
-          className={`gap-1.5 h-8 px-3 ${post.isLiked ? 'text-primary' : ''}`}
+          className={`h-8 px-2 ${post.isBookmarked ? 'text-primary' : 'text-muted-foreground'}`}
           onClick={(e) => {
             e.stopPropagation();
-            onLike?.(post);
+            onBookmark?.(post);
           }}
         >
-          <Heart className="h-4 w-4" fill={post.isLiked ? "currentColor" : "none"} />
-          <span className="text-sm">{post.like_count}</span>
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="gap-1.5 h-8 px-3" 
-          onClick={(e) => {
-            e.stopPropagation();
-            onComment?.(post);
-          }}
-        >
-          <MessageSquare className="h-4 w-4" />
-          <span className="text-sm">{post.comment_count}</span>
+          <Bookmark className="h-4 w-4" fill={post.isBookmarked ? "currentColor" : "none"} />
         </Button>
       </div>
     </CardFooter>
@@ -204,7 +237,10 @@ const PostCard: React.FC<PostCardProps> = ({
   className
 }) => {
   return (
-    <Card className={`border shadow-sm animate-hover-rise ${className || ''}`} onClick={() => isClickable && onClick?.(post)}>
+    <Card 
+      className={`border border-border/50 shadow-sm hover:border-primary/30 transition-all ${isClickable ? 'cursor-pointer' : ''} ${className || ''}`} 
+      onClick={() => isClickable && onClick?.(post)}
+    >
       <PostCardHeader post={post} onClick={onClick} onBookmark={onBookmark} onShare={onShare} />
       <PostCardContent post={post} onClick={onClick} />
       {showActions && (
@@ -212,6 +248,7 @@ const PostCard: React.FC<PostCardProps> = ({
           post={post}
           onLike={onLike}
           onComment={onComment}
+          onBookmark={onBookmark}
         />
       )}
     </Card>
