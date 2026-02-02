@@ -61,7 +61,13 @@ export const useRepostCount = (postId: string | undefined) => {
   });
 };
 
-// Toggle repost mutation
+// Repost with optional opinion
+interface RepostParams {
+  postId: string;
+  opinion?: string;
+}
+
+// Toggle repost mutation (legacy - for simple toggle)
 export const useToggleRepost = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -93,7 +99,7 @@ export const useToggleRepost = () => {
         if (error) throw error;
         return { action: 'removed' };
       } else {
-        // Add repost
+        // Add repost without opinion
         const { error } = await (supabase as any)
           .from('reposts')
           .insert({
@@ -119,6 +125,86 @@ export const useToggleRepost = () => {
     },
     onError: (error: Error) => {
       toast.error('Failed to repost: ' + error.message);
+    },
+  });
+};
+
+// Create repost with opinion
+export const useCreateRepostWithOpinion = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ postId, opinion }: RepostParams): Promise<void> => {
+      if (!user?.id) throw new Error('Must be logged in');
+
+      // Check if repost already exists
+      const { data: existing } = await (supabase as any)
+        .from('reposts')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        // Update existing repost with new opinion
+        const { error } = await (supabase as any)
+          .from('reposts')
+          .update({ opinion: opinion || null })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        // Create new repost with opinion
+        const { error } = await (supabase as any)
+          .from('reposts')
+          .insert({
+            user_id: user.id,
+            post_id: postId,
+            opinion: opinion || null,
+          });
+
+        if (error) throw error;
+        trackEvents.repost(postId);
+      }
+    },
+    onSuccess: (_, { postId }) => {
+      queryClient.invalidateQueries({ queryKey: ['repost', postId] });
+      queryClient.invalidateQueries({ queryKey: ['repost-count', postId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      toast.success('Reposted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to repost: ' + error.message);
+    },
+  });
+};
+
+// Remove repost
+export const useRemoveRepost = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (postId: string): Promise<void> => {
+      if (!user?.id) throw new Error('Must be logged in');
+
+      const { error } = await (supabase as any)
+        .from('reposts')
+        .delete()
+        .eq('post_id', postId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, postId) => {
+      queryClient.invalidateQueries({ queryKey: ['repost', postId] });
+      queryClient.invalidateQueries({ queryKey: ['repost-count', postId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      toast.success('Removed repost');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to remove repost: ' + error.message);
     },
   });
 };

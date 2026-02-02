@@ -344,6 +344,42 @@ export type Database = {
           },
         ]
       }
+      content_reports: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          reason: string
+          reporter_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          reason: string
+          reporter_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -589,6 +625,27 @@ export type Database = {
           follower_id?: string
           following_id?: string
           id?: string
+        }
+        Relationships: []
+      }
+      hidden_users: {
+        Row: {
+          created_at: string | null
+          hidden_user_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          hidden_user_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          hidden_user_id?: string
+          id?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1474,18 +1531,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          opinion: string | null
           post_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          opinion?: string | null
           post_id: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          opinion?: string | null
           post_id?: string
           user_id?: string
         }

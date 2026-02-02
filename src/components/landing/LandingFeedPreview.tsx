@@ -178,14 +178,29 @@ export const LandingFeedPreview: React.FC<LandingFeedPreviewProps> = ({ onAuthRe
           transition={{ delay: index * 0.05, duration: 0.4 }}
         >
           <Card 
-            className="glass border-border/50 hover:border-primary/30 transition-all duration-300 cursor-pointer"
+            className="glass border-border/50 hover:border-primary/30 transition-all duration-300 cursor-pointer relative"
             onClick={handleInteraction}
           >
-            <CardHeader className="p-3 pb-2">
-              {/* MANDATORY HEADER: [ @username • time ] ---- [ Type Badge ] [ ... ] */}
+            {/* Absolute 3-dot menu - sticky top right */}
+            <div className="absolute top-2 right-2 z-10">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 bg-background/80 hover:bg-background">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleInteraction}>Share</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleInteraction}>Copy link</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <CardHeader className="p-3 pb-2 pr-12">
+              {/* HEADER: [ @username • time ] ---- [ Type Badge ] */}
               <div className="flex items-center justify-between gap-2">
                 {/* LEFT: Username + time - single line */}
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
                   <button
                     onClick={handleInteraction}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors truncate"
@@ -198,82 +213,75 @@ export const LandingFeedPreview: React.FC<LandingFeedPreviewProps> = ({ onAuthRe
                   </span>
                 </div>
                 
-                {/* RIGHT: Type Badge + 3-dot menu */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <Badge variant="outline" className="text-[10px] capitalize bg-primary/10 text-primary border-primary/30 h-5 px-1.5">
-                    {getTypeLabel(post.type)}
-                  </Badge>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleInteraction}>Share</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleInteraction}>Copy link</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                {/* RIGHT: Type Badge only */}
+                <Badge variant="outline" className="text-[10px] capitalize bg-primary/10 text-primary border-primary/30 h-5 px-1.5 shrink-0">
+                  {getTypeLabel(post.type)}
+                </Badge>
               </div>
             </CardHeader>
             
-            <CardContent className="p-3 pt-1 text-left">
-              {/* Title - 2 line clamp */}
+            <CardContent className="p-3 pt-1 text-left overflow-hidden">
+              {/* Title - 2 line clamp with word break */}
               {post.title && (
-                <h3 className="text-sm font-medium mb-1 line-clamp-2">{post.title}</h3>
+                <h3 className="text-sm font-medium mb-1 line-clamp-2 break-words">{post.title}</h3>
               )}
-              {/* Body - 3 line clamp */}
+              {/* Body - 3 line clamp with word break */}
               {post.body && (
-                <p className="text-muted-foreground text-xs line-clamp-3">{post.body}</p>
+                <p className="text-muted-foreground text-xs line-clamp-3 break-words">{post.body}</p>
               )}
             </CardContent>
             
-            <CardFooter className="p-3 pt-0 flex justify-between">
-              {/* Left: Votes + Comments - equidistant */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-0.5">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-muted-foreground h-7 px-1.5"
-                    onClick={handleInteraction}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs font-medium min-w-[20px] text-center">
-                    {getVoteCount(post)}
-                  </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-muted-foreground h-7 px-1.5"
-                    onClick={handleInteraction}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                </div>
-                
+            {/* Footer: Equidistant CTAs */}
+            <CardFooter className="p-3 pt-0">
+              <div className="flex items-center justify-between w-full">
+                {/* Upvote */}
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-1 text-muted-foreground h-7 px-2"
+                  className="text-muted-foreground h-7 px-1.5 flex-1 max-w-[48px]"
                   onClick={handleInteraction}
                 >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="text-xs">{post.comment_count || 0}</span>
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                
+                {/* Vote count */}
+                <span className="text-xs font-medium min-w-[20px] text-center">
+                  {getVoteCount(post)}
+                </span>
+                
+                {/* Downvote */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-muted-foreground h-7 px-1.5 flex-1 max-w-[48px]"
+                  onClick={handleInteraction}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+                
+                {/* Comment */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-muted-foreground h-7 px-1.5 flex-1 max-w-[48px]"
+                  onClick={handleInteraction}
+                >
+                  <div className="flex items-center gap-0.5">
+                    <MessageSquare className="h-4 w-4" />
+                    <span className="text-xs">{post.comment_count || 0}</span>
+                  </div>
+                </Button>
+                
+                {/* Bookmark */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-muted-foreground h-7 px-1.5 flex-1 max-w-[48px]"
+                  onClick={handleInteraction}
+                >
+                  <Bookmark className="h-4 w-4" />
                 </Button>
               </div>
-              
-              {/* Right: Bookmark only (Share moved to 3-dot menu) */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-muted-foreground h-7 px-2"
-                onClick={handleInteraction}
-              >
-                <Bookmark className="h-4 w-4" />
-              </Button>
             </CardFooter>
           </Card>
         </motion.div>
