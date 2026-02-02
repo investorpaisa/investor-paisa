@@ -20,7 +20,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      }
+    })
 
     const { provider, credential, metadata }: AuthCompleteRequest = await req.json()
 
@@ -38,7 +43,6 @@ serve(async (req) => {
     }
 
     // Step 1: Validate credential and derive identity key based on provider
-    let identityKey: string
     let email: string | null = null
     let phone: string | null = null
     let linkedinId: string | null = null
@@ -47,31 +51,27 @@ serve(async (req) => {
       case 'email':
         // For email, credential is the email address (already verified via OTP)
         email = credential.toLowerCase().trim()
-        identityKey = `email:${email}`
-        console.log('[Auth Complete] Email provider, identity key:', identityKey)
+        console.log('[Auth Complete] Email provider:', email)
         break
         
       case 'mobile':
         // For mobile, credential is the phone number (already verified via OTP)
         phone = credential.replace(/[\s\-\(\)]/g, '')
         if (!phone.startsWith('+')) phone = `+${phone}`
-        identityKey = `phone:${phone}`
-        console.log('[Auth Complete] Mobile provider, identity key:', identityKey)
+        console.log('[Auth Complete] Mobile provider:', phone)
         break
         
       case 'google':
         // For Google, credential is the user ID from OAuth
         email = metadata?.email as string || null
-        identityKey = `google:${credential}`
-        console.log('[Auth Complete] Google provider, identity key:', identityKey)
+        console.log('[Auth Complete] Google provider, email:', email)
         break
         
       case 'linkedin':
         // For LinkedIn, credential is the sub claim from OIDC
         linkedinId = credential
         email = metadata?.email as string || null
-        identityKey = `linkedin:${credential}`
-        console.log('[Auth Complete] LinkedIn provider, identity key:', identityKey)
+        console.log('[Auth Complete] LinkedIn provider:', linkedinId)
         break
         
       default:
@@ -85,91 +85,158 @@ serve(async (req) => {
         })
     }
 
-    // Step 2: Check if user exists by email or phone
-    let existingUser = null
+    // Step 2: Check if user exists in auth.users by email or phone
+    let authUser = null
     
     if (email) {
-      console.log('[Auth Complete] Looking up user by email:', email)
-      const { data: profileByEmail } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle()
+      console.log('[Auth Complete] Looking up auth user by email:', email)
+      const { data: authData } = await supabase.auth.admin.listUsers()
+      authUser = authData?.users?.find(u => u.email === email)
       
-      if (profileByEmail) {
-        existingUser = profileByEmail
-        console.log('[Auth Complete] Found existing user by email:', existingUser.id)
+      if (authUser) {
+        console.log('[Auth Complete] Found existing auth user:', authUser.id)
       }
     }
     
-    if (!existingUser && phone) {
-      console.log('[Auth Complete] Looking up user by phone:', phone)
-      const { data: profileByPhone } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('phone', phone)
-        .maybeSingle()
+    if (!authUser && phone) {
+      console.log('[Auth Complete] Looking up auth user by phone:', phone)
+      const { data: authData } = await supabase.auth.admin.listUsers()
+      authUser = authData?.users?.find(u => u.phone === phone)
       
-      if (profileByPhone) {
-        existingUser = profileByPhone
-        console.log('[Auth Complete] Found existing user by phone:', existingUser.id)
+      if (authUser) {
+        console.log('[Auth Complete] Found existing auth user:', authUser.id)
       }
     }
 
-    if (!existingUser && linkedinId) {
-      console.log('[Auth Complete] Looking up user by LinkedIn ID:', linkedinId)
-      const { data: profileByLinkedIn } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('linkedin_id', linkedinId)
-        .maybeSingle()
+    // Step 3: Create user if doesn't exist
+    let isNewUser = false
+    
+    if (!authUser) {
+      console.log('[Auth Complete] No existing user, creating new user...')
+      isNewUser = true
       
-      if (profileByLinkedIn) {
-        existingUser = profileByLinkedIn
-        console.log('[Auth Complete] Found existing user by LinkedIn ID:', existingUser.id)
+      // Generate a secure random password (user won't use it, they use OTP)
+      const randomPassword = crypto.randomUUID() + crypto.randomUUID()
+      
+      const createPayload: { email?: string; phone?: string; password: string; email_confirm?: boolean; phone_confirm?: boolean } = {
+        password: randomPassword,
+      }
+      
+      if (email) {
+        createPayload.email = email
+        createPayload.email_confirm = true // Mark email as confirmed since they verified OTP
+      }
+      
+      if (phone) {
+        createPayload.phone = phone
+        createPayload.phone_confirm = true // Mark phone as confirmed since they verified OTP
+      }
+      
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser(createPayload)
+      
+      if (createError) {
+        console.error('[Auth Complete] Failed to create user:', createError)
+        
+        // Handle duplicate - user might exist but we couldn't find them
+        if (createError.message?.includes('already')) {
+          // Try to find the user again
+          const { data: authData } = await supabase.auth.admin.listUsers()
+          authUser = authData?.users?.find(u => 
+            (email && u.email === email) || (phone && u.phone === phone)
+          )
+          
+          if (!authUser) {
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: 'Failed to create or find user' 
+            }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+          isNewUser = false
+        } else {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: createError.message || 'Failed to create user' 
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      } else {
+        authUser = newUser.user
+        console.log('[Auth Complete] Created new auth user:', authUser.id)
       }
     }
 
-    // Step 3: Return existing user or indicate new user needed
-    if (existingUser) {
-      console.log('[Auth Complete] Returning existing user:', existingUser.id)
+    // Step 4: Ensure profile exists
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle()
+
+    if (!existingProfile) {
+      console.log('[Auth Complete] Creating profile for user:', authUser.id)
       
+      const profileData: Record<string, unknown> = {
+        id: authUser.id,
+        email: email,
+        phone: phone,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      
+      if (linkedinId) {
+        profileData.linkedin_id = linkedinId
+        profileData.linkedin_verified = true
+      }
+      
+      if (provider === 'mobile') {
+        profileData.mobile_verified = true
+      }
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert(profileData)
+      
+      if (profileError) {
+        console.error('[Auth Complete] Failed to create profile:', profileError)
+        // Continue anyway, profile might be created by trigger
+      }
+    } else {
       // Update verification status based on provider
-      const updateData: Record<string, unknown> = {}
+      const updateData: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      }
       if (provider === 'mobile') updateData.mobile_verified = true
       if (provider === 'linkedin') {
         updateData.linkedin_id = linkedinId
         updateData.linkedin_verified = true
       }
       
-      if (Object.keys(updateData).length > 0) {
-        await supabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', existingUser.id)
-      }
-      
-      return new Response(JSON.stringify({
-        success: true,
-        user: existingUser,
-        isNewUser: false,
-        message: 'User authenticated successfully'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', authUser.id)
     }
 
-    // Step 4: For new users, return that they need to be created
-    // The actual user creation happens through Supabase Auth on the frontend
-    console.log('[Auth Complete] No existing user found, signaling new user creation needed')
-    
+    // Step 5: Log completion
+    // Note: Session creation via admin API is complex; frontend will handle session
+    // via Supabase's signInWithOtp or other methods
+    console.log('[Auth Complete] User ready:', authUser.id, 'isNewUser:', isNewUser)
+
     return new Response(JSON.stringify({
       success: true,
-      isNewUser: true,
-      identityKey,
-      email,
-      phone,
-      message: 'New user - proceed with signup'
+      user: {
+        id: authUser.id,
+        email: authUser.email,
+        phone: authUser.phone,
+      },
+      session: null, // Session handled by frontend via Supabase signInWithOtp
+      isNewUser,
+      message: isNewUser ? 'User created successfully' : 'User authenticated successfully'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
