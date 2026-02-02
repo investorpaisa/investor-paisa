@@ -445,6 +445,33 @@ export type Database = {
         }
         Relationships: []
       }
+      email_otp_requests: {
+        Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          otp_hash: string
+          verified: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          otp_hash: string
+          verified?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_hash?: string
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           created_at: string
@@ -2123,6 +2150,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_expired_email_otps: { Args: never; Returns: undefined }
       compute_profile_completeness: {
         Args: { p_user_id: string }
         Returns: number
