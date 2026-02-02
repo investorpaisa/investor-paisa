@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Mail, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
@@ -79,12 +79,12 @@ const Auth: React.FC = () => {
     
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-email-request-otp`,
+        `${getSupabaseUrl()}/functions/v1/auth-email-request-otp`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'apikey': getSupabaseAnonKey(),
           },
           body: JSON.stringify({ email: data.email }),
         }
@@ -132,12 +132,12 @@ const Auth: React.FC = () => {
     try {
       // Step 1: Verify OTP via edge function
       const verifyResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-email-verify-otp`,
+        `${getSupabaseUrl()}/functions/v1/auth-email-verify-otp`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'apikey': getSupabaseAnonKey(),
           },
           body: JSON.stringify({ email, otp }),
         }
@@ -150,47 +150,59 @@ const Auth: React.FC = () => {
         throw new Error(verifyResult.error || 'Invalid code');
       }
 
-      // Step 2: OTP verified - now sign in or sign up the user
-      // First try to sign in (existing user)
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-        },
-      });
+      // Step 2: OTP verified - now complete auth via canonical endpoint
+      const completeResponse = await fetch(
+        `${getSupabaseUrl()}/functions/v1/auth-complete`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': getSupabaseAnonKey(),
+          },
+          body: JSON.stringify({ 
+            provider: 'email', 
+            credential: email 
+          }),
+        }
+      );
 
-      // Since we already verified via our custom OTP, use the magic link flow to complete auth
-      // This is a workaround - in production, consider implementing custom session creation
-      const { error: verifyOtpError } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email',
-      });
+      const completeResult = await completeResponse.json();
+      console.log('[Auth] Auth complete result:', completeResult);
 
-      // If Supabase OTP fails, try direct sign-in (the email is already verified by our edge function)
-      if (verifyOtpError) {
-        console.log('[Auth] Supabase OTP failed, attempting magic link flow...');
-        
-        // For now, show success and let user know they may need to check email
-        // In production, implement proper session creation via edge function
+      if (!completeResponse.ok || !completeResult.success) {
+        throw new Error(completeResult.error || 'Failed to complete sign in');
+      }
+
+      // Step 3: Set session if returned, or use Supabase signIn as fallback
+      if (completeResult.session) {
+        await supabase.auth.setSession({
+          access_token: completeResult.session.access_token,
+          refresh_token: completeResult.session.refresh_token,
+        });
         setStep('success');
-        toast.success('Email verified! Completing sign in...');
-        
-        // Trigger magic link as fallback
-        await supabase.auth.signInWithOtp({
+        toast.success('Welcome to InvestorPaisa!');
+        setTimeout(() => navigate('/feed'), 1500);
+      } else {
+        // No session returned - use magic link to establish session
+        // The user is already created and verified, this just creates the session
+        console.log('[Auth] No session returned, using magic link flow...');
+        const { error: signInError } = await supabase.auth.signInWithOtp({
           email,
           options: {
+            shouldCreateUser: false, // User already exists
             emailRedirectTo: window.location.origin + '/feed',
           },
         });
         
-        toast.info('Check your email to complete sign in');
-        return;
+        if (signInError) {
+          console.error('[Auth] Sign in fallback error:', signInError);
+          // Even if this fails, user was created successfully
+          // Just show success message
+        }
+        
+        setStep('success');
+        toast.success('Check your email to complete sign in!');
       }
-
-      setStep('success');
-      toast.success('Welcome to InvestorPaisa!');
-      setTimeout(() => navigate('/feed'), 1500);
     } catch (err: any) {
       console.error('[Auth] OTP verify error:', err);
       setError(err.message || 'Invalid code. Try again.');
@@ -208,12 +220,12 @@ const Auth: React.FC = () => {
     
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-email-request-otp`,
+        `${getSupabaseUrl()}/functions/v1/auth-email-request-otp`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'apikey': getSupabaseAnonKey(),
           },
           body: JSON.stringify({ email }),
         }
