@@ -25,6 +25,7 @@ import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useUIStore } from '@/stores/uiStore';
 import { trackEvents } from '@/services/analytics/googleAnalytics';
 import { TrendingStructuredFeed } from '@/components/feed/TrendingStructuredFeed';
+import { VerificationModal } from '@/components/auth/VerificationModal';
 
 interface Post {
   id: string;
@@ -421,6 +422,17 @@ const Feed: React.FC = () => {
   const { activeFeedTab, setActiveFeedTab } = useUIStore();
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+
+  // Check if this is a new user who needs verification prompt
+  useEffect(() => {
+    const isNewUser = sessionStorage.getItem('ip_new_user');
+    if (isNewUser === 'true') {
+      sessionStorage.removeItem('ip_new_user');
+      // Small delay to let page render first
+      setTimeout(() => setShowVerificationModal(true), 500);
+    }
+  }, []);
 
   // Get current tab index for swipe
   const currentTabIndex = TABS.indexOf(activeFeedTab);
@@ -685,6 +697,12 @@ const Feed: React.FC = () => {
           </AnimatePresence>
         </motion.div>
       </Tabs>
+
+      {/* Verification Modal for New Users */}
+      <VerificationModal 
+        open={showVerificationModal} 
+        onOpenChange={setShowVerificationModal} 
+      />
     </div>
   );
 };

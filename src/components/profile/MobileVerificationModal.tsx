@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { Phone, Check, Loader2, ArrowRight } from 'lucide-react';
+import { Phone, Check, Loader2, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -20,6 +18,7 @@ interface MobileVerificationModalProps {
   onClose: () => void;
   isVerified: boolean;
   onVerify?: () => void;
+  initialPhone?: string; // Pre-filled phone from profile edit page
 }
 
 export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = ({
@@ -27,22 +26,47 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
   onClose,
   isVerified,
   onVerify,
+  initialPhone,
 }) => {
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // If initialPhone is provided and valid, start directly on OTP step
+  const hasValidInitialPhone = initialPhone && initialPhone.length >= 10;
+  const [step, setStep] = useState<'phone' | 'otp'>(hasValidInitialPhone ? 'otp' : 'phone');
+  const [phoneNumber, setPhoneNumber] = useState(initialPhone || '');
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
-  const handleRequestOTP = async () => {
-    if (!phoneNumber.trim()) {
-      toast.error('Please enter a phone number');
-      return;
+  // Reset state when modal opens with new initialPhone
+  useEffect(() => {
+    if (isOpen) {
+      if (hasValidInitialPhone) {
+        setPhoneNumber(initialPhone);
+        setStep('otp');
+        // Auto-request OTP when opening with valid phone
+        handleRequestOTPSilent(initialPhone);
+      } else {
+        setStep('phone');
+        setPhoneNumber(initialPhone || '');
+      }
+      setOtp('');
+      setDevOtp(null);
     }
+  }, [isOpen, initialPhone]);
 
-    // Validate phone number format
-    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+  // Countdown timer
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleRequestOTPSilent = async (phone: string) => {
+    // Silent OTP request on modal open
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
     if (!/^\+?[1-9]\d{9,14}$/.test(cleanedPhone)) {
-      toast.error('Please include country code (e.g., +91XXXXXXXXXX)');
+      setStep('phone');
       return;
     }
 
@@ -51,10 +75,9 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please log in first');
+        setStep('phone');
         return;
       }
-
-      console.log('[OTP UI] Requesting OTP for:', cleanedPhone);
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
@@ -69,7 +92,61 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       );
 
       const data = await response.json();
-      console.log('[OTP UI] Response:', data);
+
+      if (data.success) {
+        setCountdown(60);
+        if (data.dev_otp) {
+          setDevOtp(data.dev_otp);
+        }
+        if (data.smsSent) {
+          toast.success('OTP sent to your phone!');
+        }
+      } else {
+        setStep('phone');
+        toast.error(data.error || 'Failed to send OTP');
+      }
+    } catch (error) {
+      console.error('[OTP UI] Request error:', error);
+      setStep('phone');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestOTP = async () => {
+    if (!phoneNumber.trim()) {
+      toast.error('Please enter a phone number');
+      return;
+    }
+
+    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    if (!/^\+?[1-9]\d{9,14}$/.test(cleanedPhone)) {
+      toast.error('Please include country code (e.g., +91XXXXXXXXXX)');
+      return;
+    }
+
+    setIsLoading(true);
+    setDevOtp(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please log in first');
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ phoneNumber: cleanedPhone }),
+        }
+      );
+
+      const data = await response.json();
 
       if (data.success) {
         if (data.smsSent) {
@@ -78,12 +155,9 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
           toast.success('OTP generated');
         }
         setStep('otp');
-        // For development, show OTP in toast if returned
+        setCountdown(60);
         if (data.dev_otp) {
-          toast.info(`Dev OTP: ${data.dev_otp}`, { duration: 30000 });
-        }
-        if (data.smsError) {
-          toast.warning(`SMS Note: ${data.smsError}`);
+          setDevOtp(data.dev_otp);
         }
       } else {
         toast.error(data.error || 'Failed to send OTP');
@@ -110,9 +184,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         return;
       }
 
-      // Clean phone number to match what was sent
       const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-      console.log('[OTP UI] Verifying OTP for:', cleanedPhone);
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-verify-otp`,
@@ -127,7 +199,6 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       );
 
       const data = await response.json();
-      console.log('[OTP UI] Verify response:', data);
 
       if (data.success) {
         toast.success('Mobile number verified!');
@@ -137,6 +208,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
         setStep('phone');
         setPhoneNumber('');
         setOtp('');
+        setDevOtp(null);
       } else {
         toast.error(data.error || 'Invalid OTP');
       }
@@ -148,14 +220,63 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
     }
   };
 
+  const handleResendOTP = async () => {
+    if (countdown > 0) return;
+    
+    setDevOtp(null);
+    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    
+    setIsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please log in first');
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ phoneNumber: cleanedPhone }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('New OTP sent!');
+        setCountdown(60);
+        if (data.dev_otp) {
+          setDevOtp(data.dev_otp);
+        }
+      } else {
+        toast.error(data.error || 'Failed to resend OTP');
+      }
+    } catch (error) {
+      toast.error('Failed to resend OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleClose = () => {
     onClose();
-    // Reset state after closing
     setTimeout(() => {
-      setStep('phone');
+      setStep(hasValidInitialPhone ? 'otp' : 'phone');
       setOtp('');
+      setDevOtp(null);
     }, 200);
   };
+
+  // Format phone for display
+  const displayPhone = phoneNumber.startsWith('+') 
+    ? phoneNumber 
+    : phoneNumber.length > 0 ? `+${phoneNumber}` : '';
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -168,7 +289,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
           <DialogDescription>
             {step === 'phone' 
               ? 'Enter your mobile number to receive a verification code'
-              : 'Enter the 6-digit code sent to your phone'
+              : `Enter the 6-digit code sent to ${displayPhone}`
             }
           </DialogDescription>
         </DialogHeader>
@@ -177,81 +298,96 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+91 9876543210"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="rounded-xl"
-              />
+              <div className="flex gap-2">
+                <div className="flex items-center h-10 px-3 rounded-lg bg-secondary/50 border border-border/50 text-sm text-muted-foreground">
+                  +91
+                </div>
+                <input
+                  id="phone"
+                  type="tel"
+                  placeholder="9876543210"
+                  value={phoneNumber.replace(/^\+91/, '')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setPhoneNumber(value ? `+91${value}` : '');
+                  }}
+                  className="flex-1 h-10 px-3 rounded-xl bg-secondary/50 border border-border/50 text-sm focus:border-primary focus:outline-none"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Include country code (e.g., +91 for India)
+                We'll send a 6-digit code to verify your number
               </p>
             </div>
             <Button 
               onClick={handleRequestOTP} 
-              disabled={isLoading || !phoneNumber.trim()}
+              disabled={isLoading || phoneNumber.length < 12}
               className="w-full rounded-xl gap-2"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  Send OTP
-                  <ArrowRight className="h-4 w-4" />
-                </>
+                'Send OTP'
               )}
             </Button>
           </div>
         ) : (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center space-y-4">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+              <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
                 <InputOTPGroup>
-                  <InputOTPSlot index={0} />
-                  <InputOTPSlot index={1} />
-                  <InputOTPSlot index={2} />
-                  <InputOTPSlot index={3} />
-                  <InputOTPSlot index={4} />
-                  <InputOTPSlot index={5} />
+                  <InputOTPSlot index={0} className="w-10 h-12 text-lg" />
+                  <InputOTPSlot index={1} className="w-10 h-12 text-lg" />
+                  <InputOTPSlot index={2} className="w-10 h-12 text-lg" />
+                  <InputOTPSlot index={3} className="w-10 h-12 text-lg" />
+                  <InputOTPSlot index={4} className="w-10 h-12 text-lg" />
+                  <InputOTPSlot index={5} className="w-10 h-12 text-lg" />
                 </InputOTPGroup>
               </InputOTP>
-              <p className="text-sm text-muted-foreground">
-                Sent to {phoneNumber}
-              </p>
             </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline"
-                onClick={() => setStep('phone')}
-                className="flex-1 rounded-xl"
-              >
-                Change Number
-              </Button>
-              <Button 
-                onClick={handleVerifyOTP} 
-                disabled={isLoading || otp.length !== 6}
-                className="flex-1 rounded-xl gap-2"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Verify
-                  </>
-                )}
-              </Button>
-            </div>
+
+            {/* Dev mode OTP display */}
+            {devOtp && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-center">
+                <p className="text-xs text-amber-500 mb-1">DEV MODE - Your code:</p>
+                <p className="text-lg font-bold text-amber-500 tracking-widest">{devOtp}</p>
+              </div>
+            )}
+
             <Button 
-              variant="link" 
-              onClick={handleRequestOTP}
-              disabled={isLoading}
-              className="w-full text-sm"
+              onClick={handleVerifyOTP} 
+              disabled={isLoading || otp.length !== 6}
+              className="w-full rounded-xl gap-2"
             >
-              Didn't receive code? Resend
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Verify
+                </>
+              )}
             </Button>
+
+            <div className="flex justify-between items-center text-sm">
+              <button
+                onClick={() => {
+                  setStep('phone');
+                  setOtp('');
+                  setDevOtp(null);
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ← Change number
+              </button>
+              <button
+                onClick={handleResendOTP}
+                disabled={countdown > 0 || isLoading}
+                className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
+              </button>
+            </div>
           </div>
         )}
       </DialogContent>
@@ -273,10 +409,10 @@ export const MobileVerifyButton: React.FC<MobileVerifyButtonProps> = ({
 
   if (isVerified) {
     return (
-      <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
-        <Check className="h-3 w-3 mr-1" />
+      <div className="flex items-center gap-2 text-success text-sm">
+        <Check className="h-3.5 w-3.5" />
         Mobile Verified
-      </Badge>
+      </div>
     );
   }
 

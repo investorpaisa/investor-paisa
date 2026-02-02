@@ -222,10 +222,50 @@ serve(async (req) => {
         .eq('id', authUser.id)
     }
 
-    // Step 5: Log completion
-    // Note: Session creation via admin API is complex; frontend will handle session
-    // via Supabase's signInWithOtp or other methods
-    console.log('[Auth Complete] User ready:', authUser.id, 'isNewUser:', isNewUser)
+    // Step 5: Generate a magic link for instant sign-in (returns session tokens)
+    console.log('[Auth Complete] Generating magic link for user:', authUser.id)
+    
+    let session = null
+    
+    try {
+      // Use generateLink to create a magic link, then extract the token
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email: authUser.email!,
+        options: {
+          redirectTo: `${Deno.env.get('SITE_URL') || 'https://investorpaisa.com'}/feed`,
+        }
+      })
+      
+      if (linkError) {
+        console.error('[Auth Complete] Failed to generate link:', linkError)
+      } else if (linkData?.properties?.hashed_token) {
+        console.log('[Auth Complete] Magic link generated successfully')
+        
+        // Verify the OTP token to create a session
+        // The hashed_token can be used to verify and get session
+        const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: linkData.properties.hashed_token,
+          type: 'magiclink',
+        })
+        
+        if (verifyError) {
+          console.error('[Auth Complete] Failed to verify OTP token:', verifyError)
+        } else if (verifyData?.session) {
+          console.log('[Auth Complete] Session created successfully!')
+          session = {
+            access_token: verifyData.session.access_token,
+            refresh_token: verifyData.session.refresh_token,
+            expires_in: verifyData.session.expires_in,
+            expires_at: verifyData.session.expires_at,
+          }
+        }
+      }
+    } catch (sessionError) {
+      console.error('[Auth Complete] Session generation error:', sessionError)
+    }
+
+    console.log('[Auth Complete] User ready:', authUser.id, 'isNewUser:', isNewUser, 'hasSession:', !!session)
 
     return new Response(JSON.stringify({
       success: true,
@@ -234,7 +274,7 @@ serve(async (req) => {
         email: authUser.email,
         phone: authUser.phone,
       },
-      session: null, // Session handled by frontend via Supabase signInWithOtp
+      session,
       isNewUser,
       message: isNewUser ? 'User created successfully' : 'User authenticated successfully'
     }), {

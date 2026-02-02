@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Phone, CheckCircle2, Loader2 } from 'lucide-react';
+import { Phone, CheckCircle2 } from 'lucide-react';
 import { MobileVerificationModal } from '@/components/profile/MobileVerificationModal';
 import type { ProfileFormData } from '@/hooks/useEditProfile';
 
@@ -38,9 +38,12 @@ export const ContactVerificationSection: React.FC<ContactVerificationSectionProp
     onMobileVerified?.();
   };
 
+  // Format phone for display (remove +91 prefix)
+  const displayPhone = profile.phone?.replace(/^\+91/, '') || '';
+
   return (
     <>
-      <Card className="glass border-border/50 rounded-2xl">
+      <Card id="verification-section" className="glass border-border/50 rounded-2xl scroll-mt-20">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center text-base sm:text-lg font-semibold">
             <Phone className="h-5 w-5 mr-2 text-primary" />
@@ -69,7 +72,7 @@ export const ContactVerificationSection: React.FC<ContactVerificationSectionProp
               <Input
                 id="phone"
                 type="tel"
-                value={profile.phone?.replace(/^\+91/, '') || ''}
+                value={displayPhone}
                 onChange={(e) => {
                   const value = e.target.value.replace(/\D/g, '').slice(0, 10);
                   onUpdate({ phone: value ? `+91${value}` : '' });
@@ -103,12 +106,13 @@ export const ContactVerificationSection: React.FC<ContactVerificationSectionProp
         </CardContent>
       </Card>
 
-      {/* OTP Verification Modal */}
+      {/* OTP Verification Modal - Pass phone number to skip re-entry */}
       <MobileVerificationModal
         isOpen={showOtpModal}
         onClose={() => setShowOtpModal(false)}
         isVerified={mobileVerified}
         onVerify={handleVerificationSuccess}
+        initialPhone={profile.phone}
       />
     </>
   );

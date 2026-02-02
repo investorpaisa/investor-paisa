@@ -33,7 +33,7 @@ const Auth: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
 
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
@@ -42,6 +42,12 @@ const Auth: React.FC = () => {
 
   useEffect(() => {
     if (user) {
+      // User is logged in, redirect to feed
+      // If they're a new user, the Feed component will show verification modal
+      const newUserFlag = sessionStorage.getItem('ip_new_user');
+      if (newUserFlag === 'true') {
+        sessionStorage.removeItem('ip_new_user');
+      }
       navigate('/feed');
     }
   }, [user, navigate]);
@@ -72,7 +78,7 @@ const Auth: React.FC = () => {
     }
   };
 
-  // NEW: Request OTP via edge function instead of magic link
+  // Request OTP via edge function
   const handleEmailSubmit = async (data: EmailFormValues) => {
     setIsLoading(true);
     setError(null);
@@ -120,7 +126,7 @@ const Auth: React.FC = () => {
     }
   };
 
-  // NEW: Verify OTP via edge function
+  // Verify OTP via edge function
   const handleOtpVerify = async () => {
     if (otp.length !== 6) {
       setError('Please enter the 6-digit code');
@@ -174,36 +180,42 @@ const Auth: React.FC = () => {
         throw new Error(completeResult.error || 'Failed to complete sign in');
       }
 
-      // Step 3: Set session if returned, or use Supabase signIn as fallback
+      // Track if this is a new user for verification modal
+      if (completeResult.isNewUser) {
+        setIsNewUser(true);
+        sessionStorage.setItem('ip_new_user', 'true');
+      }
+
+      // Step 3: Set session if returned
       if (completeResult.session) {
         await supabase.auth.setSession({
           access_token: completeResult.session.access_token,
           refresh_token: completeResult.session.refresh_token,
         });
-        setNeedsEmailConfirm(false);
         setStep('success');
         toast.success('Welcome to InvestorPaisa!');
-        setTimeout(() => navigate('/feed'), 1500);
+        // Navigate immediately - auth state change will handle redirect
+        setTimeout(() => navigate('/feed'), 1000);
       } else {
-        // No session returned - use magic link to establish session
-        // The user is already created and verified, this just creates the session
-        console.log('[Auth] No session returned, using magic link flow...');
+        // Fallback: Use Supabase signInWithOtp as magic link
+        // This will send another email but ensures session is created
+        console.log('[Auth] No session returned, using Supabase signInWithOtp...');
         const { error: signInError } = await supabase.auth.signInWithOtp({
           email,
           options: {
-            shouldCreateUser: false, // User already exists
+            shouldCreateUser: false,
             emailRedirectTo: window.location.origin + '/feed',
           },
         });
         
         if (signInError) {
-          console.error('[Auth] Sign in fallback error:', signInError);
-          // Even if this fails, user was created successfully
+          console.error('[Auth] signInWithOtp error:', signInError);
+          // Even if this fails, try to continue
         }
         
-        setNeedsEmailConfirm(true);
+        // Show success but explain they need to check email
         setStep('success');
-        toast.success('Check your email to complete sign in!');
+        toast.success('Check your email to complete sign in');
       }
     } catch (err: any) {
       console.error('[Auth] OTP verify error:', err);
@@ -480,25 +492,12 @@ const Auth: React.FC = () => {
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 0.5 }}
                 >
-                  {needsEmailConfirm ? (
-                    <Mail className="w-7 h-7 text-primary" />
-                  ) : (
-                    <Check className="w-7 h-7 text-primary" />
-                  )}
+                  <Check className="w-7 h-7 text-primary" />
                 </motion.div>
-                <h2 className="text-xl font-bold mb-2 font-heading">
-                  {needsEmailConfirm ? 'Check your email!' : 'Welcome!'}
-                </h2>
+                <h2 className="text-xl font-bold mb-2 font-heading">Welcome!</h2>
                 <p className="text-muted-foreground text-sm">
-                  {needsEmailConfirm 
-                    ? `We sent a sign-in link to ${email}` 
-                    : 'Redirecting to your feed...'}
+                  Redirecting to your feed...
                 </p>
-                {needsEmailConfirm && (
-                  <p className="text-muted-foreground text-xs mt-2">
-                    Click the link in your email to complete sign in
-                  </p>
-                )}
               </motion.div>
             )}
           </AnimatePresence>
