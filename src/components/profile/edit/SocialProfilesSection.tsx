@@ -42,7 +42,7 @@ export const SocialProfilesSection: React.FC<SocialProfilesSectionProps> = ({
   errors = {},
 }) => {
   return (
-    <Card className="glass border-border/50 rounded-2xl">
+    <Card id="social-profiles-section" className="glass border-border/50 rounded-2xl scroll-mt-20">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center text-base sm:text-lg font-semibold">
           <Share2 className="h-5 w-5 mr-2 text-primary" />

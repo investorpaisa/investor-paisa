@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Dialog, 
@@ -28,12 +28,20 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ open, onOp
 
   const handleMobileVerify = () => {
     onOpenChange(false);
-    navigate('/edit-profile?tab=verification');
+    navigate('/profile/edit');
+    // Auto-scroll to verification section after navigation
+    setTimeout(() => {
+      document.getElementById('verification-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 500);
   };
 
   const handleLinkedInVerify = () => {
     onOpenChange(false);
-    navigate('/edit-profile?tab=verification');
+    navigate('/profile/edit');
+    // Auto-scroll to social profiles section after navigation
+    setTimeout(() => {
+      document.getElementById('social-profiles-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 500);
   };
 
   return (
@@ -98,6 +106,15 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ open, onOp
               </div>
             </Button>
           </div>
+
+          {/* Skip for now */}
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)}
+            className="w-full text-muted-foreground text-sm"
+          >
+            Maybe later
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
