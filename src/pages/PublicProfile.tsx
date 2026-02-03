@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, MapPin, Calendar, TrendingUp, Target, AlertCircle, ExternalLink,
-  MessageCircle, UserPlus, UserCheck, Briefcase, GraduationCap, Award, Send, Loader2, Lightbulb, Heart
+  MessageCircle, UserPlus, UserCheck, Briefcase, GraduationCap, Award, Send, Loader2, Lightbulb, Heart, ArrowUp
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -621,7 +621,7 @@ const PublicProfile: React.FC = () => {
                         <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{post.body}</p>
                       )}
                       <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span>{post.like_count || 0} likes</span>
+                        <span className="flex items-center gap-0.5"><ArrowUp className="h-3 w-3" />{(post as any).upvote_count || post.like_count || 0}</span>
                         <span>{post.comment_count || 0} comments</span>
                         <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
                       </div>

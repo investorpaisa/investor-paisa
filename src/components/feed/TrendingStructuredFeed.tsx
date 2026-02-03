@@ -105,13 +105,20 @@ const NewsWidget: React.FC<{
   const { user } = useAuth();
   const navigate = useNavigate();
   const toggleBookmark = useToggleBookmark();
-  const { data: isBookmarked } = useIsBookmarked(article.id);
+  // Don't use bookmark for news articles with non-UUID ids
+  const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(article.id);
+  const { data: isBookmarked } = useIsBookmarked(isValidUuid ? article.id : undefined);
   
   const [localUpvotes, setLocalUpvotes] = useState(0);
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [isDownvoted, setIsDownvoted] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
-  const imageUrl = article.image_url || article.thumbnail_url;
+  // Determine image URL - ensure it's a proper URL string
+  const rawImageUrl = article.image_url || article.thumbnail_url;
+  const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' && (rawImageUrl.startsWith('http://') || rawImageUrl.startsWith('https://')) 
+    ? rawImageUrl 
+    : null;
   const timeAgo = formatDistanceToNow(new Date(article.published_at), { addSuffix: true });
 
   const handleUpvote = (e: React.MouseEvent) => {
@@ -147,10 +154,22 @@ const NewsWidget: React.FC<{
     }
   };
 
+  const handleComment = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Navigate to a news detail page instead of external URL
+    navigate(`/news/${encodeURIComponent(article.id)}`);
+  };
+
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
       navigate('/auth');
+      return;
+    }
+    // For non-UUID article IDs, use local state only
+    if (!isValidUuid) {
+      setIsSaved(!isSaved);
+      toast.success(isSaved ? 'Removed from bookmarks' : 'Saved to bookmarks');
       return;
     }
     toggleBookmark.mutate({
@@ -162,14 +181,20 @@ const NewsWidget: React.FC<{
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      if (navigator.share) {
+      if (navigator.share && navigator.canShare?.({ url: article.url })) {
         await navigator.share({ url: article.url, title: article.title });
       } else {
         await navigator.clipboard.writeText(article.url);
         toast.success('Link copied to clipboard');
       }
-    } catch {
-      toast.error('Failed to share');
+    } catch (err) {
+      // User cancelled or error - try clipboard fallback
+      try {
+        await navigator.clipboard.writeText(article.url);
+        toast.success('Link copied to clipboard');
+      } catch {
+        toast.error('Unable to share');
+      }
     }
   };
 
@@ -271,12 +296,12 @@ const NewsWidget: React.FC<{
             <ArrowDown className="h-4 w-4" />
           </Button>
           
-          {/* Comment (shows 0) */}
+          {/* Comment */}
           <Button 
             variant="ghost" 
             size="sm" 
             className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground"
-            onClick={handleOpenLink}
+            onClick={handleComment}
           >
             <div className="flex items-center gap-0.5">
               <MessageSquare className="h-3.5 w-3.5" />
@@ -298,10 +323,10 @@ const NewsWidget: React.FC<{
           <Button 
             variant="ghost" 
             size="sm" 
-            className={`h-7 px-1.5 flex-1 max-w-[48px] ${isBookmarked ? 'text-primary' : 'text-muted-foreground'}`}
+            className={`h-7 px-1.5 flex-1 max-w-[48px] ${(isBookmarked || isSaved) ? 'text-primary' : 'text-muted-foreground'}`}
             onClick={handleSave}
           >
-            <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+            <Bookmark className="h-3.5 w-3.5" fill={(isBookmarked || isSaved) ? "currentColor" : "none"} />
           </Button>
 
           {/* 3-dot menu */}
