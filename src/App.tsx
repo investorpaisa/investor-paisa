@@ -12,6 +12,7 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import Feed from "@/pages/Feed";
 import PostDetail from "@/pages/PostDetail";
+import NewsDetail from "@/pages/NewsDetail";
 import Profile from "@/pages/Profile";
 import ProfileEdit from "@/pages/ProfileEdit";
 import PublicProfile from "@/pages/PublicProfile";
@@ -57,6 +58,13 @@ function App() {
                 <Route path="/post/:postId" element={
                   <MainLayout>
                     <PostDetail />
+                  </MainLayout>
+                } />
+                
+                {/* News detail - accessible to all */}
+                <Route path="/news/:id" element={
+                  <MainLayout>
+                    <NewsDetail />
                   </MainLayout>
                 } />
                 

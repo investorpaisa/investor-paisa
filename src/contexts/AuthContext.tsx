@@ -47,40 +47,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!supabase) return null;
     
     try {
+      // First try to fetch existing profile
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      // Profile doesn't exist - create it as fallback
-      if (!data && !error) {
-        const username = userEmail ? userEmail.split('@')[0] : `user_${userId.slice(0, 8)}`;
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            username,
-            email: userEmail,
-          })
-          .select()
-          .single();
-        
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-          return null;
-        }
-        return newProfile as Profile;
+      // Profile exists - return it
+      if (data) {
+        return data as Profile;
       }
 
+      // If there's an error (not just "no data"), log and return null
       if (error) {
         console.error('Error fetching profile:', error);
         return null;
       }
 
-      return data as Profile;
+      // Profile doesn't exist - try to create it using upsert to avoid duplicate key errors
+      const username = userEmail ? userEmail.split('@')[0] : `user_${userId.slice(0, 8)}`;
+      const { data: newProfile, error: upsertError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          username,
+          email: userEmail,
+        }, { 
+          onConflict: 'id',
+          ignoreDuplicates: true 
+        })
+        .select()
+        .single();
+      
+      if (upsertError) {
+        // If upsert fails, try to fetch again (profile might have been created by trigger)
+        console.log('Upsert failed, fetching existing profile:', upsertError.message);
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (existingProfile) {
+          return existingProfile as Profile;
+        }
+        return null;
+      }
+      return newProfile as Profile;
     } catch (err) {
-      console.error('Error fetching profile:', err);
+      console.error('Error in fetchProfile:', err);
       return null;
     }
   }, []);
