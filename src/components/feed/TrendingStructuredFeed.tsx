@@ -4,9 +4,10 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, Crown, ExternalLink, Star, Users, Newspaper } from 'lucide-react';
+import { TrendingUp, Star, Newspaper, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
+
 interface PromotedProfile {
   id: string;
   full_name: string | null;
@@ -28,22 +29,13 @@ interface NewsArticle {
   thumbnail_url: string | null;
   published_at: string;
   category: string;
-}
-
-interface LeaderboardEntry {
-  id: string;
-  full_name: string | null;
-  username: string | null;
-  avatar_url: string | null;
-  followers_count: number;
-  is_verified: boolean;
-  rank: number;
-  badge: string | null;
+  country?: string;
 }
 
 interface TrendingStructuredFeedProps {
   newsArticles?: NewsArticle[];
   isLoading?: boolean;
+  filter?: 'all' | 'indian' | 'global' | 'crypto';
 }
 
 // Promoted Profile Card
@@ -104,9 +96,16 @@ const NewsWidget: React.FC<{ article: NewsArticle }> = ({ article }) => (
           />
         )}
         <div className="flex-1 min-w-0">
-          <Badge variant="secondary" className="text-[10px] mb-1">
-            {article.category}
-          </Badge>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Badge variant="secondary" className="text-[10px]">
+              {article.category}
+            </Badge>
+            {article.country && (
+              <Badge variant="outline" className="text-[10px]">
+                {article.country === 'india' ? '🇮🇳 India' : '🌐 Global'}
+              </Badge>
+            )}
+          </div>
           <h4 className="text-sm font-medium line-clamp-2">{article.title}</h4>
           <p className="text-xs text-muted-foreground mt-1">{article.source}</p>
         </div>
@@ -115,18 +114,62 @@ const NewsWidget: React.FC<{ article: NewsArticle }> = ({ article }) => (
   </Card>
 );
 
-// Leaderboard Widget removed as per user request
-
 export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
-  newsArticles = [],
-  isLoading = false,
+  newsArticles: propArticles,
+  isLoading: propLoading = false,
+  filter = 'all',
 }) => {
   const [promotedProfiles, setPromotedProfiles] = useState<PromotedProfile[]>([]);
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>(propArticles || []);
+  const [isLoading, setIsLoading] = useState(propLoading);
   const [loadingPromotions, setLoadingPromotions] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch news and promotions on mount
   useEffect(() => {
-    const fetchPromotions = async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
       try {
+        // First trigger the RSS fetch to update news (once per session)
+        const sessionKey = 'news_fetched_session';
+        const lastFetch = sessionStorage.getItem(sessionKey);
+        const now = Date.now();
+        
+        // Only fetch if not already fetched this session (or if older than 5 minutes)
+        if (!lastFetch || (now - parseInt(lastFetch)) > 5 * 60 * 1000) {
+          try {
+            await fetch(`${getSupabaseUrl()}/functions/v1/fetch-google-rss`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            sessionStorage.setItem(sessionKey, now.toString());
+          } catch (e) {
+            console.log('RSS fetch triggered in background');
+          }
+        }
+
+        // Fetch trending news from the database
+        const newsRes = await fetch(
+          `${getSupabaseUrl()}/functions/v1/news-trending?type=${filter}&limit=20`,
+          {
+            headers: {
+              'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+            },
+          }
+        );
+        
+        if (newsRes.ok) {
+          const data = await newsRes.json();
+          setNewsArticles(data.articles || []);
+        } else {
+          throw new Error('Failed to fetch news');
+        }
+
         // Fetch promoted profiles
         const profilesRes = await fetch(
           `${getSupabaseUrl()}/functions/v1/promotions-profiles?type=profile&limit=3`,
@@ -140,15 +183,60 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
           const data = await profilesRes.json();
           setPromotedProfiles(data.promotions || []);
         }
-      } catch (error) {
-        console.error('Failed to fetch promotions:', error);
+      } catch (err) {
+        console.error('Failed to fetch trending data:', err);
+        setError('Failed to load trending news');
       } finally {
+        setIsLoading(false);
         setLoadingPromotions(false);
       }
     };
 
-    fetchPromotions();
-  }, []);
+    fetchData();
+  }, [filter]);
+
+  // Update from props if provided
+  useEffect(() => {
+    if (propArticles && propArticles.length > 0) {
+      setNewsArticles(propArticles);
+    }
+  }, [propArticles]);
+
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Force fresh RSS fetch
+      await fetch(`${getSupabaseUrl()}/functions/v1/fetch-google-rss`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Fetch latest news
+      const newsRes = await fetch(
+        `${getSupabaseUrl()}/functions/v1/news-trending?type=${filter}&limit=20`,
+        {
+          headers: {
+            'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+          },
+        }
+      );
+      
+      if (newsRes.ok) {
+        const data = await newsRes.json();
+        setNewsArticles(data.articles || []);
+        sessionStorage.setItem('news_fetched_session', Date.now().toString());
+      }
+    } catch (err) {
+      setError('Failed to refresh news');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (isLoading || loadingPromotions) {
     return (
@@ -168,7 +256,6 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
   const feedItems: React.ReactNode[] = [];
   let newsIndex = 0;
 
-  // Pattern: 4 news, promoted profile, 4 news, leaderboard, repeat
   const buildPattern = () => {
     // First batch of news (0-3)
     for (let i = 0; i < 4 && newsIndex < newsArticles.length; i++) {
@@ -183,14 +270,6 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
       feedItems.push(
         <PromotedProfileCard key="promoted" profiles={promotedProfiles} />
       );
-    }
-
-    // Second batch of news (4-7)
-    for (let i = 0; i < 4 && newsIndex < newsArticles.length; i++) {
-      feedItems.push(
-        <NewsWidget key={`news-${newsIndex}`} article={newsArticles[newsIndex]} />
-      );
-      newsIndex++;
     }
 
     // Remaining news
@@ -209,7 +288,13 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
       <Card>
         <CardContent className="p-8 text-center">
           <Newspaper className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">No trending content available</p>
+          <p className="text-muted-foreground mb-4">No trending content available</p>
+          {error && (
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Try Again
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
