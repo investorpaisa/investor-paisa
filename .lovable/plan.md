@@ -1,440 +1,428 @@
 
 
-# InvestorPaisa Production Readiness - Implementation Plan
+# InvestorPaisa Production Readiness - Comprehensive Fix Plan
 
-## Executive Summary
+## Root Cause Analysis Summary
 
-This plan addresses 6 critical production issues across authentication, UI/UX, profile management, routing, and data integrations. Each fix includes root cause analysis based on code exploration and evidence from logs.
+Based on thorough investigation of the codebase, edge functions, and database:
 
----
+### Issue 1: Mobile OTP - "Server returned invalid response"
+**ROOT CAUSE IDENTIFIED**: The edge function IS working correctly (tested directly). The issue is that the **Twilio account is in trial mode** and can only send SMS to verified phone numbers. 
 
-## Issue 1: Edit Profile - Right-Align "Add" Buttons + New Interests Section
-
-### Current State Analysis
-**Evidence from code:**
-- `ExperienceSection.tsx` (lines 92-107): The "Add" button is already inside a `flex justify-between` container in the CardHeader but it is not sticky on the right. Refer to attached screenshot.
-- `EducationSection.tsx` (lines 84-100): Same pattern - button is right-alignedbut it is not sticky on the right. Refer to attached screenshot.
-- `CertificationsSection.tsx` (lines 82-99): Same pattern - button is right-alignedbut it is not sticky on the right. Refer to attached screenshot.
-
-**InterestsSection.tsx Analysis:**
-- Current implementation is a simple toggle button list, NOT a proper card with "Add" button pattern
-- It's used inside the old `EditProfileForm.tsx` but NOT in the new `ProfileEdit.tsx`
-- New ProfileEdit.tsx uses `GoalsSection` instead
-
-### Technical Solution
-
-#### A. Verify Button Alignment (Already Correct)
-The existing sections already use the correct pattern:
-```
-<div className="flex items-center justify-between">
-  <CardTitle>...</CardTitle>
-  <Button>+ Add</Button>
-</div>
+**Evidence:**
+```json
+{
+  "success": true,
+  "smsSent": false,
+  "smsError": "The number +91123456XXXX is unverified. Trial accounts cannot send messages to unverified numbers"
+}
 ```
 
-#### B. Create New InterestsSection Component
-Create a proper Interests section following the goals/financial awareness suggestor pattern:
+The frontend receives `success: true` even when SMS fails (for dev mode testing), but the OTP is generated and returned as `dev_otp`. The real fix is either:
+1. Upgrade Twilio to a paid account, OR
+2. Replace Twilio with Lovable AI's built-in SMS capability (if available), OR
+3. Use a different SMS provider (like Resend for SMS)
 
-**Financial Interests Categories (based on user awareness levels):**
-- **Beginner**: Savings, Fixed Deposits, Insurance Basics, Budgeting
-- **Intermediate**: Mutual Funds, SIPs, Tax Saving, Gold Investing
-- **Advanced**: Stocks, Options Trading, Portfolio Management, Technical Analysis
-- **Expert**: Derivatives, Forex, Algorithmic Trading, Alternative Investments
+**Frontend Issue**: The error message is misleading. The modal should show that OTP was generated successfully (even if SMS failed in dev mode).
 
-This section will:
-1. Match the glass-card UI pattern of other sections
-2. Have a suggestor list organized by awareness level
-3. Allow multi-select (up to 10 interests)
-4. Include "Add" button in header (for custom interest)
-5. Store in `profiles.interests` array
-
-### Files Modified/Created
-- Create: `src/components/profile/edit/InterestsSection.tsx` (new proper implementation)
-- Modify: `src/pages/ProfileEdit.tsx` (add InterestsSection)
-- Modify: `src/hooks/useEditProfile.ts` (add interests state management if not present)
-
----
-
-## Issue 2: Mobile OTP Not Working (Modal Loop + Server Error)
-
-### Root Cause Analysis (RCA)
-
-**Critical Evidence:**
-1. **Edge Function Logs**: `No logs found for edge function 'auth-mobile-request-otp'`
-2. **Error Message**: "Server returned invalid response" - indicates HTML (404) returned instead of JSON
-3. **MobileVerificationModal.tsx (lines 44-55)**: Modal does NOT auto-request OTP, it correctly requires explicit user action
-
-**Root Cause Identified:**
-- The edge functions exist in code (`supabase/functions/auth-mobile-request-otp/index.ts`)
-- But they are **NOT DEPLOYED** to production
-- When frontend calls the function URL, it gets a 404 HTML page
-- The `parseJsonResponse` helper correctly catches this and shows "Server returned invalid response"
-
-**Secondary Issue - Wrong Modal:**
-Looking at `ContactVerificationSection.tsx` (lines 77-95):
-- It shows a "Verify" button that opens `MobileVerificationModal`
-- The modal is correctly implemented with OTP input UI
-- But if the edge function returns HTML, the error causes the modal to reset
-
-### Technical Solution
-
-#### A. Deploy Edge Functions (Critical)
-The edge functions MUST be deployed:
-```
-auth-mobile-request-otp
-auth-mobile-verify-otp
+### Issue 2: LinkedIn Connect - "Server returned invalid response"
+**ROOT CAUSE IDENTIFIED**: The edge function IS working correctly. Test shows it returns a valid auth URL:
+```json
+{
+  "authUrl": "https://www.linkedin.com/oauth/v2/authorization?...",
+  "state": "3a3f739b-a177-4cbe-b263-5e2c0b9c9c82"
+}
 ```
 
-#### B. Verify Twilio Configuration
-From `auth-mobile-request-otp/index.ts` (lines 24-27):
+**Real Issue**: The frontend is getting a non-JSON response due to missing Authorization header when the user session is not properly attached, or CORS issues.
+
+### Issue 3: Google Sign-in Not Landing on Feed
+**ROOT CAUSE**: The `lovable.auth.signInWithOAuth` correctly redirects, but the callback handling in `AuthContext.tsx` may not be properly setting the session after OAuth redirect.
+
+**Evidence from Auth.tsx (line 43-52)**:
 ```typescript
-const twilioAccountSid = Deno.env.get('OTP_ACCOUNT_SID') || Deno.env.get('TWILIO_ACCOUNT_SID')
-const twilioAuthToken = Deno.env.get('OTP_AUTH_TOKEN') || Deno.env.get('TWILIO_AUTH_TOKEN')
-const fromNumber = Deno.env.get('OTP_FROM_NUMBER') || '+12184534076'
+useEffect(() => {
+  if (user) {
+    navigate('/feed');
+  }
+}, [user, navigate]);
 ```
+This should work, but the issue may be in the OAuth callback flow not setting the session properly.
 
-**Secrets to verify are configured:**
-- `OTP_ACCOUNT_SID` or `TWILIO_ACCOUNT_SID` (must start with "AC")
-- `OTP_AUTH_TOKEN` or `TWILIO_AUTH_TOKEN`
-- `OTP_FROM_NUMBER`
+### Issue 4: Public Profile Truncation + "See More"
+**Current State**: `PublicProfile.tsx` uses `line-clamp-3` for bio which truncates without a "See more" option.
 
-All these secrets exist in the project secrets list.
+**Missing Features**:
+- No "See more" button for bio
+- No display of Experience, Education, Certifications sections
+- No privacy setting checks for what sections to show
 
-#### C. Add Better Error Handling
-Add fallback error messaging when edge function is not deployed:
-- Check if response status is 404
-- Show "Mobile verification service unavailable. Please try again later."
-
-### Files Modified
-- Deploy: `supabase/functions/auth-mobile-request-otp/index.ts`
-- Deploy: `supabase/functions/auth-mobile-verify-otp/index.ts`
-- Minor update: `src/components/profile/MobileVerificationModal.tsx` (improve error messages)
-
----
-
-## Issue 3: LinkedIn Connect Not Working
-
-### Root Cause Analysis (RCA)
-
-**Critical Evidence:**
-1. **Edge Function Logs**: `No logs found for edge function 'auth-linkedin-connect'`
-2. **Error Message**: "Server returned invalid response. LinkedIn Connect may not be available."
-3. Same issue as Mobile OTP - function NOT DEPLOYED
-
-**LinkedIn OIDC Configuration Check** (from `auth-linkedin-connect/index.ts`):
-- Uses `LINKEDIN_OIDC_CLIENT_ID` and `LINKEDIN_OIDC_CLIENT_SECRET` - both exist in secrets
-- Uses OpenID Connect flow with `openid profile email` scopes
-- Redirect URI: `${window.location.origin}/profile/edit`
-
-**LinkedIn Developer Console Requirements:**
-- Redirect URI must be registered: `https://investor-paisa.lovable.app/profile/edit`
-- Preview URL: `https://id-preview--14ca1bc6-3a3e-4389-94f1-5fe01fd1bbce.lovable.app/profile/edit`
-
-### Technical Solution
-
-#### A. Deploy Edge Function (Critical)
-```
-auth-linkedin-connect
-```
-
-#### B. Verify LinkedIn Developer Console Configuration
-Ensure these redirect URIs are registered:
-- Production: `https://investor-paisa.lovable.app/profile/edit`
-- Preview: `https://id-preview--14ca1bc6-3a3e-4389-94f1-5fe01fd1bbce.lovable.app/profile/edit`
-
-#### C. Add Better Error Handling
-Similar to mobile OTP - detect 404 and show appropriate message.
-
-### Files Modified
-- Deploy: `supabase/functions/auth-linkedin-connect/index.ts`
-- Minor update: `src/components/profile/LinkedInConnect.tsx` (improve error messages)
-
----
-
-## Issue 4: Public Profile Access Issues
-
-### Current State Analysis
-
-**Route Check** (from `App.tsx` lines 81-86):
+### Issue 5: Search -> Public Profile Navigation
+**ROOT CAUSE FOUND**: `SearchTypeahead.tsx` navigates to `/profile/${username}` instead of `/u/${username}`:
 ```typescript
-<Route path="/u/:username" element={
-  <MainLayout>
-    <PublicProfile />
-  </MainLayout>
-} />
-```
-The route EXISTS and is correctly configured.
-
-**Profile 3-Dot Menu** (from `Profile.tsx` lines 281-301):
-```typescript
-<DropdownMenuContent align="end" className="w-48">
-  <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
-    Edit Profile
-  </DropdownMenuItem>
-  <DropdownMenuSeparator />
-  <DropdownMenuItem onClick={handleLogout}>
-    Log out
-  </DropdownMenuItem>
-</DropdownMenuContent>
-```
-**MISSING**: "View Public Profile" option
-
-**Search Result Navigation** (from `Landing.tsx` lines 43-46):
-```typescript
-const handleSearchResultClick = (type: string, id: string) => {
-  handleAuthGate(); // Gates ALL interactions - doesn't navigate to /u/:username
+const handleUserClick = (username: string | null) => {
+  if (username) {
+    navigate(`/profile/${username}`);  // WRONG - should be /u/${username}
+    onResultClick();
+  }
 };
 ```
-**Issue**: Search results don't navigate to public profiles for users.
 
-### Technical Solution
+### Issue 6: Trending Tab & Markets Empty
+**ROOT CAUSE FOUND**: 
+- **News**: Was stale (Jan 31) but `fetch-google-rss` successfully inserted 21 new articles when called
+- **Markets**: Edge function IS working - returns valid data from TwelveData
 
-#### A. Add "View Public Profile" to Profile 3-Dot Menu
-Update `Profile.tsx` dropdown to include:
-```typescript
-<DropdownMenuItem onClick={() => navigate(`/u/${profile.username}`)}>
-  <ExternalLink className="mr-2 h-4 w-4" />
-  View Public Profile
-</DropdownMenuItem>
-```
-
-#### B. Fix Search Result Navigation for Users
-Update search result click handlers in both `Landing.tsx` and any other search components:
-- For users: Navigate to `/u/:username` (public profile)
-- For posts: Navigate to `/post/:id`
-- For topics: Navigate to `/feed?topic=:slug`
-
-For logged-out users, can still navigate to public profiles (read-only).
-
-#### C. Verify PublicProfile.tsx Works Correctly
-The component exists and queries `profiles_public` view by username. Verify:
-1. The view includes necessary public fields
-2. Query works for `@investorpaisacommunity` username
-
-### Files Modified
-- `src/pages/Profile.tsx` (add View Public Profile menu item)
-- `src/pages/Landing.tsx` (fix search result navigation)
-- `src/components/search/SearchTypeahead.tsx` (if exists, fix navigation)
+The issue is that the `fetch-google-rss` cron job is not set up to run every 5 minutes.
 
 ---
 
-## Issue 5: Remove Landing Page, Make /feed the Logged-Out Landing
+## Implementation Plan
 
-### Current State Analysis
+### Phase 1: Mobile OTP Fix (High Priority)
 
-**Current Routing** (from `App.tsx`):
-- `/` -> `Landing.tsx` (standalone page)
-- `/feed` -> `Feed.tsx` (with MainLayout)
+**Problem**: Twilio trial mode limitation + misleading error messages
 
-**Landing.tsx Features**:
-- Hero section with gradient animations
-- Search with auth gate
-- LandingFeedPreview component
-- Sticky "Start" CTA button
+**Solution**:
+1. Update `MobileVerificationModal.tsx` to handle the `success: true, smsSent: false` case properly
+2. Show the dev OTP clearly when SMS fails (for testing)
+3. Add a note that SMS requires Twilio account upgrade for production
 
-**Feed.tsx for Logged-Out**:
-- Already supports `TABS_LOGGED_OUT = ['pulse', 'trending']`
-- Has feed content display
+**Files to Modify**:
+- `src/components/profile/MobileVerificationModal.tsx`
+- No edge function changes needed - it's working correctly
 
-### Technical Solution
-
-#### A. Redirect `/` to `/feed`
-Update `App.tsx`:
+**Technical Changes**:
 ```typescript
-<Route path="/" element={<Navigate to="/feed" replace />} />
+// In handleRequestOTP, after parseJsonResponse:
+if (data.success) {
+  setFlowState('sent');
+  setCountdown(60);
+  
+  if (data.smsSent) {
+    toast.success('OTP sent to your phone!');
+  } else if (data.dev_otp) {
+    // Dev mode - show OTP in modal
+    setDevOtp(data.dev_otp);
+    toast.info('SMS not available - use code shown below');
+  }
+  
+  if (data.smsError) {
+    console.warn('[OTP] SMS Error:', data.smsError);
+  }
+}
 ```
-
-#### B. Enhance Feed.tsx for Logged-Out Users (CRED-like)
-Transform Feed.tsx logged-out experience:
-
-1. **Add Hero Section at Top** (for logged-out users only):
-   - Animated gradient background
-   - "Ask anything about money." headline
-   - Value props animation
-   - "Get Started" CTA button
-
-2. **Add Auto-Scrolling Featured Cards**:
-   - Top user-generated content
-   - Expert profiles
-   - Horizontal scroll with CSS animation
-
-3. **Add Community Proof Section**:
-   - Stats: "10K+ investors", "1000+ questions answered"
-   - Testimonials
-
-4. **Add Sticky Bottom CTA**:
-   - Pill-shaped, 44px height
-   - "Start" button that navigates to /auth
-
-5. **Keep Premium Aesthetics**:
-   - Dark theme with soft gradients
-   - Micro-animations on scroll
-   - Card hover lift effects
-
-#### C. Remove Standalone Landing.tsx
-- Delete or archive `src/pages/Landing.tsx`
-- Move reusable components (AutoScrollCards, CommunityProof) to feed
-
-### Files Modified
-- `src/App.tsx` (redirect `/` to `/feed`)
-- `src/pages/Feed.tsx` (add CRED-like logged-out experience)
-- Move/reuse: `src/components/landing/AutoScrollCards.tsx`
-- Delete: `src/pages/Landing.tsx`
 
 ---
 
-## Issue 6: Trending News & Markets Data Empty
+### Phase 2: LinkedIn Connect Fix
 
-### Root Cause Analysis
+**Problem**: Authentication header not being sent properly when session is null
 
-**News Data Check:**
+**Solution**:
+1. Add better session validation before calling LinkedIn API
+2. Add retry logic with session refresh
+3. Improve error handling for unauthorized responses
+
+**Files to Modify**:
+- `src/components/profile/LinkedInConnect.tsx`
+
+**Technical Changes**:
+```typescript
+const handleConnect = async () => {
+  setIsLoading(true);
+  setError(null);
+  
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error('Please refresh the page and try again');
+      return;
+    }
+    // ... rest of the flow
+  }
+}
+```
+
+---
+
+### Phase 3: Google Sign-in Fix
+
+**Problem**: OAuth callback may not be setting session properly
+
+**Solution**:
+1. Add explicit session handling after OAuth redirect
+2. Check for hash parameters on /feed route for OAuth callback
+3. Add session restoration logic
+
+**Files to Modify**:
+- `src/contexts/AuthContext.tsx`
+- `src/pages/Feed.tsx` (add OAuth callback detection)
+
+**Technical Changes**:
+In `Feed.tsx`, add effect to check for OAuth return:
+```typescript
+useEffect(() => {
+  // Check if returning from OAuth
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  if (hashParams.get('access_token')) {
+    // Let AuthContext handle the session
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}, []);
+```
+
+---
+
+### Phase 4: Public Profile Enhancements
+
+**Problem**: Bio truncation without "See more", missing sections
+
+**Solution**:
+1. Add "See more/less" toggle for bio
+2. Add Experience, Education, Certifications sections
+3. Check privacy settings before showing sections
+4. Add Follow/Message buttons for non-own profiles
+
+**Files to Modify**:
+- `src/pages/PublicProfile.tsx`
+
+**Technical Changes**:
+```typescript
+// Add state for bio expansion
+const [bioExpanded, setBioExpanded] = useState(false);
+
+// Bio with See more
+{profile.bio && (
+  <div>
+    <p className={`text-sm text-muted-foreground ${bioExpanded ? '' : 'line-clamp-3'}`}>
+      {profile.bio}
+    </p>
+    {profile.bio.length > 150 && (
+      <button 
+        onClick={() => setBioExpanded(!bioExpanded)}
+        className="text-primary text-sm mt-1"
+      >
+        {bioExpanded ? 'See less' : 'See more'}
+      </button>
+    )}
+  </div>
+)}
+
+// Add sections with privacy checks
+{profile.privacy_experience !== false && (
+  <ExperienceSection userId={profile.id} isPublicView={true} />
+)}
+```
+
+---
+
+### Phase 5: Search Navigation Fix
+
+**Problem**: Navigates to `/profile/${username}` instead of `/u/${username}`
+
+**Solution**:
+1. Update `SearchTypeahead.tsx` to navigate to public profile route
+2. This allows logged-out users to view profiles too
+
+**Files to Modify**:
+- `src/components/search/SearchTypeahead.tsx`
+
+**Technical Changes**:
+```typescript
+const handleUserClick = (username: string | null) => {
+  if (username) {
+    navigate(`/u/${username}`);  // Changed from /profile/
+    onResultClick();
+  }
+};
+```
+
+---
+
+### Phase 6: Follow & Message Flow (New Feature)
+
+**Problem**: Need Follow button with states + Messaging with credential blocking
+
+**Solution**:
+
+#### A. Enhance Public Profile with Follow/Message buttons
+**Files to Modify**:
+- `src/pages/PublicProfile.tsx`
+
+Add:
+```typescript
+// Import hooks
+import { useToggleFollow, useIsFollowing } from '@/hooks/useFollows';
+
+// Check follow status
+const { data: isFollowing, isLoading: followLoading } = useIsFollowing(profile?.id);
+const toggleFollow = useToggleFollow();
+
+// Follow button with confirmation modal for unfollow
+<Button
+  onClick={handleFollowClick}
+  variant={isFollowing ? 'outline' : 'default'}
+>
+  {isFollowing ? 'Following' : 'Follow'}
+</Button>
+```
+
+#### B. Create Unfollow Confirmation Modal
+**Files to Create**:
+- `src/components/profile/UnfollowConfirmModal.tsx`
+
+```typescript
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  username: string;
+}
+
+export const UnfollowConfirmModal = ({ isOpen, onClose, onConfirm, username }) => (
+  <Dialog open={isOpen} onOpenChange={onClose}>
+    <DialogContent>
+      <DialogTitle>Unfollow {username}?</DialogTitle>
+      <DialogDescription>
+        Are you sure you want to unfollow this user?
+      </DialogDescription>
+      <div className="flex gap-3 justify-end">
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button variant="destructive" onClick={onConfirm}>Unfollow</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+```
+
+#### C. Messaging with Credential Blocking
+**Files to Modify**:
+- Create `src/hooks/useSendMessage.ts`
+- Update `src/pages/MessagesNew.tsx`
+
+**Credential Detection**:
+```typescript
+const CREDENTIAL_PATTERNS = [
+  /password[\s:=]+\S+/i,
+  /pwd[\s:=]+\S+/i,
+  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/,  // Email
+  /\b\d{10,}\b/,  // Phone
+  /api[_-]?key[\s:=]+\S+/i,
+  /secret[\s:=]+\S+/i,
+  /token[\s:=]+\S+/i,
+];
+
+const containsCredentials = (message: string): boolean => {
+  return CREDENTIAL_PATTERNS.some(pattern => pattern.test(message));
+};
+
+// In send message handler:
+if (containsCredentials(message)) {
+  toast.error('Message cannot contain sensitive information like passwords or credentials');
+  return;
+}
+```
+
+#### D. Follow Requirement for Messaging
+**Logic**: Only allow P1 to message P2 if P1 follows P2
+
+```typescript
+// In MessagesNew.tsx startConversation:
+const { data: isFollowing } = await supabase
+  .from('follows')
+  .select('id')
+  .eq('follower_id', user.id)
+  .eq('following_id', targetUserId)
+  .single();
+
+if (!isFollowing) {
+  toast.error('You need to follow this user before messaging');
+  return;
+}
+```
+
+---
+
+### Phase 7: News Cron Job Setup
+
+**Problem**: News is stale - needs automatic refresh every 5 minutes
+
+**Solution**:
+Enable pg_cron and pg_net extensions, then create scheduled job
+
+**Database Migration**:
 ```sql
-SELECT COUNT(*) as count, MAX(published_at) as latest FROM news_articles
--- Result: count=50, latest=2026-01-31 14:03:08+00
-```
-**Finding**: News data EXISTS in database (50 articles), but latest is 2 days old.
+-- Enable extensions
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
 
-**Edge Function Logs:**
-- `market-data`: No logs found (NOT DEPLOYED)
-- `news-trending`: Not checked but likely same issue
-
-**TrendingStructuredFeed.tsx Analysis** (lines 161-193):
-- Fetches `promotions-profiles` and `leaderboard-influencers`
-- Receives `newsArticles` as prop from parent
-- If newsArticles is empty, shows "No trending content available"
-
-**Feed.tsx News Fetching** (need to check):
-- The Trending tab uses TrendingStructuredFeed
-- Need to verify how news is being fetched and passed
-
-**Markets Data** (from `Markets.tsx`):
-- Uses `useMarketBatch` hook
-- Hook calls `marketService.getBatchQuotes()`
-- Service calls edge function: `${VITE_SUPABASE_URL}/functions/v1/market-data`
-- Edge function NOT DEPLOYED = returns 404 = throws error
-
-### Technical Solution
-
-#### A. Deploy Edge Functions
-```
-market-data
-news-trending
-fetch-google-rss (for cron news ingestion)
-```
-
-#### B. Verify News Data Flow
-1. Check Feed.tsx how it fetches news for Trending tab
-2. Ensure TrendingStructuredFeed receives news articles
-3. Verify news_articles table has recent data (last 24h filter)
-
-#### C. Set Up News Cron Job (if not exists)
-The `fetch-google-rss` edge function should run every 5 minutes to keep news fresh.
-
-#### D. Add Mock/Fallback Data
-In case edge functions fail:
-- Markets: Show mock data with "Data temporarily unavailable" notice
-- News: Query directly from Supabase if edge function fails
-
-### Files Modified
-- Deploy: `supabase/functions/market-data/index.ts`
-- Deploy: `supabase/functions/news-trending/index.ts`
-- Deploy: `supabase/functions/fetch-google-rss/index.ts`
-- Update: `src/services/market/marketService.ts` (add fallback)
-- Update: `src/pages/Feed.tsx` (verify news fetching for Trending tab)
-
----
-
-## Implementation Order
-
-```text
-+------------------------------------------------------------------------+
-|  EXECUTION ORDER (STRICT)                                              |
-+------------------------------------------------------------------------+
-|  1. Deploy All Edge Functions (CRITICAL FIRST)                         |
-|     - auth-mobile-request-otp                                           |
-|     - auth-mobile-verify-otp                                            |
-|     - auth-linkedin-connect                                             |
-|     - market-data                                                       |
-|     - news-trending                                                     |
-|     - fetch-google-rss                                                  |
-|                                                                         |
-|  2. Fix Mobile OTP Flow                                                |
-|     - Functions deployed                                                |
-|     - Add better error handling                                         |
-|     - Test end-to-end                                                   |
-|                                                                         |
-|  3. Fix LinkedIn Connect                                               |
-|     - Functions deployed                                                |
-|     - Verify redirect URIs                                              |
-|     - Test end-to-end                                                   |
-|                                                                         |
-|  4. Add Public Profile Menu Option                                     |
-|     - Update Profile.tsx 3-dot menu                                     |
-|     - Fix search navigation to /u/:username                             |
-|                                                                         |
-|  5. Remove Landing, Enhance /feed for Logged-Out                       |
-|     - Add hero section with animations                                  |
-|     - Add community proof                                               |
-|     - Add sticky CTA                                                    |
-|     - Redirect "/" to "/feed"                                           |
-|                                                                         |
-|  6. Fix Edit Profile Sections                                          |
-|     - Verify Add button alignment (already correct)                     |
-|     - Create new InterestsSection with suggestor                        |
-|     - Add to ProfileEdit.tsx                                            |
-|                                                                         |
-|  7. Verify Trending/Markets Data                                       |
-|     - Confirm edge functions return data                                |
-|     - Verify news fetch in Feed.tsx                                     |
-|     - Add fallback for failures                                         |
-+------------------------------------------------------------------------+
+-- Schedule news fetch every 5 minutes
+SELECT cron.schedule(
+  'fetch-google-rss-news',
+  '*/5 * * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://mgjxxihralfncarbuvqs.supabase.co/functions/v1/fetch-google-rss',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}'::jsonb,
+    body := '{}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
 ---
 
-## Files Summary
+### Phase 8: Feed News Data Flow Fix
 
-| Issue | New Files | Modified Files |
-|-------|-----------|----------------|
-| 1. Edit Profile | Rewrite `InterestsSection.tsx` | `ProfileEdit.tsx`, `useEditProfile.ts` |
-| 2. Mobile OTP | - | Deploy functions, `MobileVerificationModal.tsx` |
-| 3. LinkedIn | - | Deploy function, `LinkedInConnect.tsx` |
-| 4. Public Profile | - | `Profile.tsx`, `Landing.tsx` search handlers |
-| 5. Landing/Feed | - | `App.tsx`, `Feed.tsx`, delete `Landing.tsx` |
-| 6. Markets/News | - | Deploy functions, `marketService.ts`, `Feed.tsx` |
+**Problem**: Trending tab not showing news articles
 
----
+**Solution**:
+1. Verify `TrendingStructuredFeed` receives news articles from parent
+2. Ensure `useNews` hook fetches from correct endpoint
 
-## QA Acceptance Checklist
-
-- [ ] Edge functions all deployed and returning JSON
-- [ ] Mobile OTP: Send OTP, enter code, verify successfully
-- [ ] LinkedIn Connect: OAuth popup opens, returns connected
-- [ ] Profile 3-dot menu shows "View Public Profile" option
-- [ ] Clicking user in search navigates to `/u/:username`
-- [ ] `/` redirects to `/feed`
-- [ ] Logged-out `/feed` has CRED-like hero and CTAs
-- [ ] Trending tab shows recent news articles
-- [ ] Markets page shows real-time quote data
-- [ ] Edit Profile has new Interests section with suggestor
-- [ ] All Add buttons right-aligned in Edit Profile sections
+**Files to Check/Modify**:
+- `src/pages/Feed.tsx` - Verify news is passed to TrendingStructuredFeed
+- `src/components/feed/TrendingStructuredFeed.tsx`
+- `src/hooks/useNews.ts`
 
 ---
 
-## Critical Deployment Note
+## File Change Summary
 
-The ROOT CAUSE of Mobile OTP, LinkedIn Connect, and Markets issues is:
-**Edge functions are NOT DEPLOYED**
+| Priority | File | Change Type | Description |
+|----------|------|-------------|-------------|
+| 1 | `MobileVerificationModal.tsx` | Modify | Handle `smsSent: false` gracefully |
+| 2 | `LinkedInConnect.tsx` | Modify | Better session validation |
+| 3 | `AuthContext.tsx` | Modify | OAuth callback session handling |
+| 4 | `PublicProfile.tsx` | Modify | Add See more, sections, Follow/Message |
+| 5 | `SearchTypeahead.tsx` | Modify | Change navigation to `/u/:username` |
+| 6 | `UnfollowConfirmModal.tsx` | Create | Confirmation for unfollow |
+| 7 | `useSendMessage.ts` | Create | Message sending with credential check |
+| 8 | Database Migration | Create | Cron job for news refresh |
 
-The first action MUST be deploying all required edge functions:
-```
-auth-mobile-request-otp
-auth-mobile-verify-otp
-auth-linkedin-connect
-market-data
-news-trending
-fetch-google-rss
-```
+---
 
-Without deployment, all fixes to frontend code will be ineffective.
+## Testing Checklist
+
+- [ ] Mobile OTP: Enter number -> See dev OTP -> Verify successfully
+- [ ] LinkedIn: Click Connect -> OAuth popup -> Returns Connected
+- [ ] Google: Click Continue with Google -> Lands on /feed logged in
+- [ ] Public Profile: See full bio with "See more", Experience/Education if enabled
+- [ ] Search: Click user -> Navigate to `/u/:username`
+- [ ] Follow: Button shows "Follow" -> Click -> Shows "Following"
+- [ ] Unfollow: Click "Following" -> Confirmation modal -> Unfollow
+- [ ] Message: Can only message users you follow
+- [ ] Message: Blocked if contains password/credential
+- [ ] Trending: Shows fresh news (less than 24h old)
+- [ ] Markets: Shows real stock data for NIFTY50, SENSEX, etc.
+
+---
+
+## Important Notes
+
+1. **Twilio Trial Limitation**: For production SMS, upgrade to paid Twilio account or switch provider
+2. **LinkedIn OAuth**: Ensure redirect URIs are registered in LinkedIn Developer Console
+3. **News Freshness**: Cron job must be running for fresh news
+4. **Market Data**: TwelveData and Finnhub APIs are working; ensure API keys have quota
 
