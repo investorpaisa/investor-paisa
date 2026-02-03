@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Phone, Check, Loader2, RotateCcw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, getSupabaseUrl } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 type OTPFlowState = 'idle' | 'phone' | 'sending' | 'sent' | 'verifying' | 'success';
@@ -105,7 +105,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
+        `${getSupabaseUrl()}/functions/v1/auth-mobile-request-otp`,
         {
           method: 'POST',
           headers: {
@@ -169,7 +169,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-verify-otp`,
+        `${getSupabaseUrl()}/functions/v1/auth-mobile-verify-otp`,
         {
           method: 'POST',
           headers: {
@@ -223,7 +223,7 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`,
+        `${getSupabaseUrl()}/functions/v1/auth-mobile-request-otp`,
         {
           method: 'POST',
           headers: {

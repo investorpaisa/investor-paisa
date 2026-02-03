@@ -159,6 +159,8 @@ export const useToggleFollow = () => {
       queryClient.invalidateQueries({ queryKey: ['following'] });
       queryClient.invalidateQueries({ queryKey: ['followers'] });
       queryClient.invalidateQueries({ queryKey: ['isFollowing', user?.id, targetUserId] });
+      queryClient.invalidateQueries({ queryKey: ['public-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
       toast.success(result.action === 'followed' ? 'Following!' : 'Unfollowed');
     },
     onError: (error) => {

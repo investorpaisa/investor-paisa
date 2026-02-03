@@ -1337,6 +1337,7 @@ export type Database = {
           privacy_certifications: boolean | null
           privacy_education: boolean | null
           privacy_experience: boolean | null
+          privacy_interests: boolean | null
           privacy_skills: boolean | null
           profile_completeness_score: number | null
           streak_days: number | null
@@ -1380,6 +1381,7 @@ export type Database = {
           privacy_certifications?: boolean | null
           privacy_education?: boolean | null
           privacy_experience?: boolean | null
+          privacy_interests?: boolean | null
           privacy_skills?: boolean | null
           profile_completeness_score?: number | null
           streak_days?: number | null
@@ -1423,6 +1425,7 @@ export type Database = {
           privacy_certifications?: boolean | null
           privacy_education?: boolean | null
           privacy_experience?: boolean | null
+          privacy_interests?: boolean | null
           privacy_skills?: boolean | null
           profile_completeness_score?: number | null
           streak_days?: number | null

@@ -1,7 +1,7 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getSupabaseUrl, getSupabaseAnonKey } from "@/integrations/supabase/client";
 
-const MARKET_DATA_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-data`;
-const MARKET_AI_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-ai`;
+const getMarketDataUrl = () => `${getSupabaseUrl()}/functions/v1/market-data`;
+const getMarketAiUrl = () => `${getSupabaseUrl()}/functions/v1/market-ai`;
 
 export interface MarketQuote {
   symbol: string;
@@ -61,10 +61,10 @@ export interface MarketResponse<T> {
 async function fetchMarketData<T>(endpoint: string, params: Record<string, string>): Promise<MarketResponse<T>> {
   const queryParams = new URLSearchParams({ endpoint, ...params });
   
-  const response = await fetch(`${MARKET_DATA_URL}?${queryParams}`, {
+  const response = await fetch(`${getMarketDataUrl()}?${queryParams}`, {
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      Authorization: `Bearer ${getSupabaseAnonKey()}`,
     },
   });
 
@@ -132,11 +132,11 @@ export const marketAIService = {
     history?: OHLCData[];
     indicators?: Record<string, any[]>;
   }): Promise<string> {
-    const response = await fetch(MARKET_AI_URL, {
+    const response = await fetch(getMarketAiUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${getSupabaseAnonKey()}`,
       },
       body: JSON.stringify({
         type: "market-insight",
@@ -169,11 +169,11 @@ export const marketAIService = {
     percentChange?: number;
     history?: OHLCData[];
   }): Promise<string> {
-    const response = await fetch(MARKET_AI_URL, {
+    const response = await fetch(getMarketAiUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${getSupabaseAnonKey()}`,
       },
       body: JSON.stringify({
         type: "stock-summary",
@@ -191,11 +191,11 @@ export const marketAIService = {
   },
 
   async explainIndicator(symbol: string, indicator: string, values: any[]): Promise<string> {
-    const response = await fetch(MARKET_AI_URL, {
+    const response = await fetch(getMarketAiUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${getSupabaseAnonKey()}`,
       },
       body: JSON.stringify({
         type: "indicator-explainer",
