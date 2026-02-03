@@ -1,485 +1,305 @@
 
-# InvestorPaisa Production Readiness - Comprehensive Fix Plan
+# InvestorPaisa Production Readiness - UI/UX & Permissions Fix Plan
 
 ## Executive Summary
 
-This plan addresses 11 critical production issues. The **ROOT CAUSE** for multiple failures (Mobile OTP, LinkedIn Connect, Trending, Markets) is that `import.meta.env.VITE_SUPABASE_URL` returns `undefined` at runtime in various components, causing edge function calls to fail with "undefined/functions/v1/..." URLs. The fix requires using the exported `getSupabaseUrl()` function from the Supabase client.
+This plan addresses 7 major issues spanning navigation, content actions, profile display, posting workflow, user tier permissions, and data integration. Based on code exploration, I've identified the specific changes needed in each file.
 
 ---
 
-## Critical Root Cause: Environment Variables Not Available
+## Issue 1: Duplicate Navigation Bar in Stock Detail Page
 
-### Evidence
-Network requests show:
-```
-GET undefined/functions/v1/news-trending?type=all&limit=20
-GET undefined/functions/v1/promotions-profiles?type=profile&limit=3
-```
+### Current State
+`StockDetail.tsx` has its own `StockDetailNav` component (lines 46-131) that creates a second navigation bar below the main `MainLayout` header.
 
-Console errors:
-```
-SyntaxError: Unexpected token '<', "<!DOCTYPE"... is not valid JSON
-Mobile verification service is temporarily unavailable
-LinkedIn Connect service is temporarily unavailable
-```
+### Screenshot Evidence
+The screenshot shows two navigation bars - the main InvestorPaisa header at top, and a duplicate "InvestorPaisa" navigation row below it.
 
 ### Solution
-Replace all instances of:
-```typescript
-`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/...`
-```
+Remove the `StockDetailNav` component entirely and ensure StockDetail.tsx is rendered within MainLayout (which already provides the navigation).
 
-With:
-```typescript
-import { getSupabaseUrl } from '@/integrations/supabase/client';
-// ...
-`${getSupabaseUrl()}/functions/v1/...`
-```
+### Technical Changes
 
----
-
-## Issue 1: Mobile OTP Not Working
-
-### Problem
-- Error: "Server returned invalid response. Please try again."
-- Root cause: `import.meta.env.VITE_SUPABASE_URL` is undefined
-- Twilio trial limitation: can only send SMS to verified numbers
-
-### Solution
-
-#### A. Fix URL in MobileVerificationModal.tsx
-Change from:
-```typescript
-`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-mobile-request-otp`
-```
-To:
-```typescript
-import { getSupabaseUrl } from '@/integrations/supabase/client';
-// ...
-`${getSupabaseUrl()}/functions/v1/auth-mobile-request-otp`
-```
-
-#### B. Alternative: Use Lovable AI's OTP Solution
-Since Lovable Cloud supports auth, we can leverage Supabase's built-in phone auth instead of custom Twilio integration:
-- Use `supabase.auth.signInWithOtp({ phone: phoneNumber })` for OTP request
-- Use `supabase.auth.verifyOtp({ phone, token, type: 'sms' })` for verification
-- This uses Supabase's auth system which may have SMS configured
-
-If Supabase phone auth is not available, keep Twilio but fix the URL issue.
-
-### Files Modified
-- `src/components/profile/MobileVerificationModal.tsx`
-
----
-
-## Issue 2: LinkedIn Connect Not Working
-
-### Problem
-- Error: "Server returned invalid response. LinkedIn Connect may not be available."
-- Same root cause: undefined URL
-
-### Solution
-Fix URL in LinkedInConnect.tsx:
-```typescript
-import { getSupabaseUrl } from '@/integrations/supabase/client';
-// ...
-`${getSupabaseUrl()}/functions/v1/auth-linkedin-connect`
+```text
++---------------------------------------+
+| File: src/pages/StockDetail.tsx       |
++---------------------------------------+
+| 1. Remove StockDetailNav component    |
+|    (lines 46-131)                     |
+| 2. Remove the <StockDetailNav />      |
+|    usage in the return statement      |
++---------------------------------------+
 ```
 
 ### Files Modified
-- `src/components/profile/LinkedInConnect.tsx`
+- `src/pages/StockDetail.tsx`
 
 ---
 
-## Issue 3: Public Profile Issues
+## Issue 2: Content Action CTAs Standardization
 
-### Current Problems
-1. **Follower/Following counts not updating** - The counts in the profile summary are static (read from `profiles_public` view), but the `useToggleFollow` mutation doesn't invalidate the public profile query
-2. **Followers/Following not clickable** - No modal/page to show the list
-3. **Skills, Interests, Certifications not showing** - Privacy settings not being checked for these sections
+### Current State
+- `PostCard.tsx` has: Like, Comment, Bookmark (footer) + Share, Report, Hide (3-dot menu)
+- Missing: Upvote/Downvote, Repost CTA
+- `PostDetail.tsx` has Back button positioned above the widget, not aligned left
+
+### Requirements Per Tier Matrix
+All content should have:
+- Upvote (ArrowUp)
+- Downvote (ArrowDown)
+- Repost (with or without opinion)
+- Save (Bookmark)
+- Share (under 3-dots)
+- Report spam (under 3-dots, not for own content)
+- Hide user (under 3-dots, not for own content)
 
 ### Solution
 
-#### A. Fix Count Updates After Follow/Unfollow
-In `useFollows.ts`, add invalidation for public profile query:
-```typescript
-onSuccess: (result, targetUserId) => {
-  queryClient.invalidateQueries({ queryKey: ['following'] });
-  queryClient.invalidateQueries({ queryKey: ['followers'] });
-  queryClient.invalidateQueries({ queryKey: ['isFollowing', user?.id, targetUserId] });
-  queryClient.invalidateQueries({ queryKey: ['public-profile'] }); // Add this
-  queryClient.invalidateQueries({ queryKey: ['profile'] }); // Add this
-  toast.success(result.action === 'followed' ? 'Following!' : 'Unfollowed');
-},
+#### A. Update PostCard.tsx Footer
+Replace Like/Comment with Upvote/Downvote/Comment/Repost/Save pattern:
+
+```text
+Footer Layout:
+[Upvote | Downvote | Comment | Repost | Save]
+     (equidistant in mobile)
 ```
 
-#### B. Create Followers/Following Modal (Instagram-like)
-Create new component: `FollowersModal.tsx`
-- Accept `userId`, `type: 'followers' | 'following'`, `isOpen`, `onClose` props
-- Fetch followers/following list using existing hooks
-- Display list with avatar, name, username, follow button
-- Navigate to public profile on click
+#### B. Fix PostDetail.tsx Back Button Position
+Move Back button to be inline with the content card (left-aligned, same row as card start), not centered above.
 
-#### C. Make Counts Clickable in PublicProfile.tsx
-```typescript
-<button 
-  onClick={() => setShowFollowersModal(true)}
-  className="text-left"
->
-  <span className="font-bold text-sm">{profile.followers_count || 0}</span>
-  <span className="text-muted-foreground text-xs ml-1">Followers</span>
-</button>
-```
-
-#### D. Add Skills & Interests Sections to PublicProfile
-Add queries for skills and interests:
-```typescript
-// Fetch user's skills
-const { data: skills } = useQuery({
-  queryKey: ['public-profile-skills', profile?.id],
-  queryFn: async () => {
-    if (!profile?.id) return [];
-    const { data, error } = await supabase
-      .from('user_skills')
-      .select('*')
-      .eq('user_id', profile.id);
-    if (error) return [];
-    return data || [];
-  },
-  enabled: !!profile?.id && fullProfile?.privacy_skills !== false,
-});
-
-// Display interests from profile
-{fullProfile?.privacy_interests !== false && profile.interests?.length > 0 && (
-  <Card>
-    <CardHeader>
-      <CardTitle>Interests</CardTitle>
-    </CardHeader>
-    <CardContent>
-      {profile.interests.map(interest => (
-        <Badge key={interest}>{interest}</Badge>
-      ))}
-    </CardContent>
-  </Card>
-)}
-```
-
-### Files Modified/Created
-- `src/pages/PublicProfile.tsx`
-- `src/hooks/useFollows.ts`
-- Create: `src/components/profile/FollowersModal.tsx`
+### Files Modified
+- `src/components/posts/PostCard.tsx` - Replace footer actions
+- `src/pages/PostDetail.tsx` - Fix back button alignment
+- `src/pages/Feed.tsx` - Update FeedPostCard to match pattern
 
 ---
 
-## Issue 4: Trending & Markets Data Empty
+## Issue 3: Profile Icon Styling in Navigation
 
-### Problem
-- Edge function URLs are undefined
-- TrendingStructuredFeed.tsx fetches from `undefined/functions/v1/...`
-- marketService.ts uses `import.meta.env.VITE_SUPABASE_URL` directly
+### Current State
+From `MainLayout.tsx` lines 134-147:
+- Profile button uses `rounded-full` instead of `rounded-xl` like other nav icons
+- The `AvatarWithRing` component shows a progress ring around the avatar
+- The ring color (cyan/teal) is visible based on profile completion percentage
+
+### Screenshot Evidence
+Profile icon has circular hover state while others have rounded-xl (12px radius). There's a cyan element (the progress ring) extending beyond the avatar.
 
 ### Solution
 
-#### A. Fix TrendingStructuredFeed.tsx
-```typescript
-import { getSupabaseUrl } from '@/integrations/supabase/client';
-// ...
-const profilesRes = await fetch(
-  `${getSupabaseUrl()}/functions/v1/promotions-profiles?type=profile&limit=3`
-);
+#### A. Match Profile Button Styling
+Change profile button to use same `rounded-xl h-10 w-10` pattern as other nav buttons.
+
+#### B. Conditionally Hide Ring in Navigation
+Only show the ring when viewing profile page, not in nav header. In header, use simple Avatar.
+
+### Technical Changes
+
+```text
++---------------------------------------+
+| File: src/layouts/MainLayout.tsx      |
++---------------------------------------+
+| Line 134-147: Replace AvatarWithRing  |
+| with plain Avatar in nav, and use     |
+| rounded-xl styling on the button      |
++---------------------------------------+
 ```
 
-#### B. Fix marketService.ts
-```typescript
-import { getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
-// ...
-const MARKET_DATA_URL = `${getSupabaseUrl()}/functions/v1/market-data`;
-// Use getSupabaseAnonKey() for Authorization header
-```
+### Files Modified
+- `src/layouts/MainLayout.tsx`
 
-#### C. Fix newsService API files
-Update all files in `src/services/news/api/` to use `getSupabaseUrl()`
+---
+
+## Issue 4: Markets & Trending Data + UI Improvements
+
+### Current State
+- `TrendingStructuredFeed.tsx` includes `LeaderboardWidget` showing "Top Influencers" - user wants this removed
+- Markets page has refresh button that should be conditional (only show on error)
+- AI Insight panel has refresh button - should be hidden when insight is already generated
+- Spacing issues between Price Chart and Volume toggle
+- Indian indices data not loading
+
+### Solution
+
+#### A. Remove Top Influencers Widget
+Delete `LeaderboardWidget` component and its usage from `TrendingStructuredFeed.tsx`.
+
+#### B. Conditional Refresh Buttons
+- In `Markets.tsx`: Only show refresh button if there was an error loading data
+- In `AIInsightPanel.tsx`: Hide refresh button when insight is successfully loaded
+- In `StockDetail.tsx`: Remove refresh button when data is loaded successfully
+
+#### C. Fix Spacing
+Reduce gap between Price Chart header and Volume toggle.
+
+#### D. Mobile Optimization
+- Reduce padding/spacing across Markets and StockDetail pages
+- Make charts more compact on mobile
+- Ensure all content is readable without excessive scrolling
+
+#### E. Fix Indian Indices
+The symbols `NIFTY50`, `SENSEX`, `BANKNIFTY`, `NIFTYIT` need proper mapping to actual tradeable symbols in the market-data edge function.
 
 ### Files Modified
 - `src/components/feed/TrendingStructuredFeed.tsx`
-- `src/services/market/marketService.ts`
-- `src/services/news/api/*.ts`
+- `src/pages/Markets.tsx`
+- `src/pages/StockDetail.tsx`
+- `src/components/market/AIInsightPanel.tsx`
 
 ---
 
-## Issue 5: Saved Post Widget Not Showing Preview
+## Issue 5: Post to Public/Community Option
 
 ### Current State
-The Saved tab in Profile.tsx only shows:
-```
-[Bookmark icon] [Badge: post]
-Saved 3 days ago
-```
+`CreateHub.tsx` has options for Question, Opinion, Community, and Brand Collaboration. However:
+- No option to choose between posting publicly or to a specific community
+- Brand Collaboration shows "Coming Soon" but the badge positioning is off (content outside widget)
 
 ### Solution
-Fetch the actual post data when displaying bookmarks:
-```typescript
-// In useQuery for bookmarks, also fetch the post data
-const { data: userBookmarks } = useQuery({
-  queryKey: ['user-bookmarks', profile?.id],
-  queryFn: async () => {
-    if (!profile?.id || !isOwnProfile) return [];
 
-    const { data: bookmarks, error } = await supabase
-      .from('bookmarks')
-      .select('id, entity_id, entity_type, created_at')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(10);
+#### A. Add Community/Public Selector
+When user selects "Ask Question" or "Share Opinion", add a toggle/selector to choose:
+- Public (default) - visible to all
+- Community - select from user's communities
 
-    if (error) throw error;
-    if (!bookmarks) return [];
+#### B. Fix Brand Collaboration Badge
+Ensure the "Coming Soon" badge and all content stays within the card widget.
 
-    // Fetch post details for post bookmarks
-    const postIds = bookmarks.filter(b => b.entity_type === 'post').map(b => b.entity_id);
-    const { data: posts } = await supabase
-      .from('posts')
-      .select('id, title, body, type, like_count, comment_count, created_at')
-      .in('id', postIds);
+### Technical Changes
 
-    const postsMap = new Map(posts?.map(p => [p.id, p]) || []);
-    
-    return bookmarks.map(b => ({
-      ...b,
-      post: b.entity_type === 'post' ? postsMap.get(b.entity_id) : null,
-    }));
-  },
-  enabled: !!profile?.id && isOwnProfile,
-});
-```
-
-Then display with same format as Posts tab.
-
-### Files Modified
-- `src/pages/Profile.tsx`
-
----
-
-## Issue 6: Add Button Alignment in Edit Profile
-
-### Current State
-Screenshot shows Add button is inline with title ("Experience + Add"), not right-aligned.
-
-### Current Code (ExperienceSection.tsx lines 91-107)
-```typescript
-<div className="flex items-center justify-between">
-  <CardTitle className="flex items-center text-base sm:text-lg font-semibold">
-    <Briefcase className="h-5 w-5 mr-2 text-primary" />
-    Experience
-  </CardTitle>
-  <Button ...>+ Add</Button>
-</div>
-```
-
-The code looks correct but the screenshot shows otherwise. The issue may be that the CardTitle flex items is preventing proper justify-between.
-
-### Solution
-Remove flex from CardTitle and make it a span:
-```typescript
-<div className="flex items-center justify-between w-full">
-  <div className="flex items-center text-base sm:text-lg font-semibold">
-    <Briefcase className="h-5 w-5 mr-2 text-primary" />
-    Experience
-  </div>
-  <Button ...>+ Add</Button>
-</div>
-```
-
-Apply same fix to:
-- `EducationSection.tsx`
-- `CertificationsSection.tsx`
-- `SkillsSection.tsx`
-- `InterestsSection.tsx` (already has correct pattern)
-
-### Files Modified
-- `src/components/profile/edit/ExperienceSection.tsx`
-- `src/components/profile/edit/EducationSection.tsx`
-- `src/components/profile/edit/CertificationsSection.tsx`
-- `src/components/profile/edit/SkillsSection.tsx`
-
----
-
-## Issue 7: Privacy Settings Missing Interests
-
-### Current State
-`PrivacySection.tsx` has settings for:
-- Experience
-- Education
-- Certifications
-- Skills
-
-But NOT for Interests.
-
-### Solution
-Add interests privacy setting:
-```typescript
-const privacySettings = [
-  // ... existing
-  {
-    key: 'privacy_interests',
-    label: 'Interests',
-    description: 'Show your financial interests on public profile',
-    value: privacyInterests,
-  },
-];
-```
-
-Also need to:
-1. Add `privacy_interests` column to profiles table
-2. Update `useEditProfile.ts` to handle privacy_interests
-3. Update `PublicProfile.tsx` to check privacy_interests
-
-### Files Modified
-- `src/components/profile/edit/PrivacySection.tsx`
-- `src/hooks/useEditProfile.ts`
-- `src/pages/PublicProfile.tsx`
-- Database migration: add `privacy_interests` column
-
----
-
-## Issue 8: Recent Posts on Public Profile Not Truncated
-
-### Current State
-Shows all 10 posts, should show 1-2 with "See all" CTA
-
-### Solution
-LinkedIn-style layout for Recent Posts section:
-```typescript
-{/* Recent Activity - LinkedIn style */}
-<Card className="border border-border/50">
-  <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
-    <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
-    {userPosts && userPosts.length > 1 && (
-      <Button 
-        variant="ghost" 
-        size="sm"
-        onClick={() => navigate(`/u/${profile.username}?tab=posts`)}
-        className="text-primary text-xs"
-      >
-        See all {userPosts.length}
-      </Button>
-    )}
-  </CardHeader>
-  <CardContent className="p-4 pt-2">
-    {/* Show only first post */}
-    {userPosts && userPosts.length > 0 ? (
-      <div className="p-3 rounded-lg bg-secondary/30">
-        <Badge variant="outline" className="text-[10px] mb-2">{userPosts[0].type}</Badge>
-        <h4 className="font-medium text-sm line-clamp-2">{userPosts[0].title}</h4>
-        {userPosts[0].body && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{userPosts[0].body}</p>
-        )}
-        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-          <span>{userPosts[0].like_count || 0} likes</span>
-          <span>{userPosts[0].comment_count || 0} comments</span>
-        </div>
-      </div>
-    ) : (
-      <p className="text-sm text-muted-foreground text-center py-4">No activity yet</p>
-    )}
-  </CardContent>
-</Card>
+```text
++---------------------------------------+
+| File: src/components/create/          |
+|       CreateHub.tsx                   |
++---------------------------------------+
+| 1. Add community selector state       |
+| 2. Add CircleSelector component       |
+|    after question/opinion input       |
+| 3. Update post insert to include      |
+|    community_id if selected           |
+| 4. Fix Brand Collab card layout       |
++---------------------------------------+
 ```
 
 ### Files Modified
-- `src/pages/PublicProfile.tsx`
+- `src/components/create/CreateHub.tsx`
 
 ---
 
-## Issue 9: Notifications Not Appearing
+## Issue 6: Public Profile Enhancements
 
 ### Current State
-Database shows notifications ARE being created (follow notifications exist in table). The issue is they're missing title/body fields.
+From `PublicProfile.tsx`:
+- "See all" button exists but may not be functioning properly
+- Posts section shows up to 2 posts (lines 599-624)
+- Missing Expert badge display
+- Activity CTAs missing on post widgets within profile
 
-### Evidence from Database
-```
-actor_id: b32ab9c1-497a-45d6-80fe-3369b9c55f36
-body: null
-title: null
-type: follow
-```
-
-### Solution
-Update the `handle_follow_change()` database function to include title and body:
-```sql
-INSERT INTO public.notifications (user_id, type, actor_id, entity_type, entity_id, title, body)
-VALUES (
-  NEW.following_id, 
-  'follow', 
-  NEW.follower_id, 
-  'user', 
-  NEW.follower_id,
-  'New follower',
-  'started following you'
-);
-```
-
-Also need to create similar triggers for:
-- Comments on posts
-- Answers to questions
-- Upvotes/downvotes
-- Reposts
-
-### Files Modified
-- Database migration: Update triggers
-
----
-
-## Issue 10: Backend - Remove "Hide Own Posts" Option
-
-### Problem
-Users can hide their own content, which doesn't make sense.
+### Requirements
+- "See all" should navigate to `/u/:username?tab=posts`
+- Expert badge should show on public profile
+- Post widgets in profile should have same action CTAs as main feed
 
 ### Solution
-The frontend already has logic in Feed.tsx but need to ensure it's consistent. Looking at the PostCard dropdown:
+
+#### A. Fix See All Navigation
+The button at line 580 already has `onClick={() => navigate(\`/u/${profile.username}?tab=posts\`)}`. Need to:
+1. Handle the `?tab=posts` query param in PublicProfile
+2. Show full posts list when tab=posts is active
+
+#### B. Add Expert Badge
+Add tier badge display near the user's name:
+
 ```typescript
-{/* Only show Hide User option for OTHER users' posts */}
-{post.author_id !== user?.id && (
-  <DropdownMenuItem onClick={handleHideUser}>
-    <EyeOff className="mr-2 h-4 w-4" />
-    Hide posts from this user
-  </DropdownMenuItem>
+{(profile as any).tier === 'expert' && (
+  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px]">
+    Expert
+  </Badge>
 )}
 ```
 
-This logic should be verified and applied consistently across all post display components.
+#### C. Add Action CTAs to Post Widgets
+Update the post cards in Recent Activity section to include:
+- Upvote/Downvote
+- Comment count (clickable)
+- Repost
+- Save
 
-### Files to Verify
-- `src/pages/Feed.tsx`
-- `src/components/posts/PostCard.tsx`
+### Files Modified
+- `src/pages/PublicProfile.tsx`
 
 ---
 
-## Issue 11: Backend - Mark User Profile as Expert/Verified
+## Issue 7: User Tier Access Rights Enforcement
 
 ### Current State
-The user needs their profile marked as:
-- `mobile_verified: true`
-- `linkedin_verified: true` with `linkedin_id: 'amanin'`
-- `is_expert: true`
-- `tier: 'expert'`
+From `useUserTier.ts`:
+- Permissions are defined correctly
+- `canComment`, `canAskQuestion`, `canPostOpinion` are false for unverified users
+- BUT these permissions aren't being enforced in the UI consistently
+
+### Requirements from Screenshot
+| Action | UV users | V users | Influencers | Experts |
+|--------|----------|---------|-------------|---------|
+| Like | Y | Y | Y | Y |
+| Share | Y | Y | Y | Y |
+| Comment | | Y | Y | Y |
+| Post | | Y | Y | Y |
+| Messages | | Y | Y | Y |
+| AI Copilot | | | Y | Y |
+| Profile promotion | | | Y | Y |
+| Brand collaboration | | | Y | Y |
+| Paid Listing | | | | Y |
+| Mass Outreach | | | | Y |
 
 ### Solution
-Run database update:
-```sql
-UPDATE profiles 
-SET 
-  mobile_verified = true,
-  linkedin_verified = true,
-  linkedin_id = 'aman',
-  is_expert = true,
-  tier = 'expert',
-  streak_days = 100,
-  upvote_rate = 0.85
-WHERE email = 'prodmandeep@gmail.com' OR username LIKE '%aman%';
+
+#### A. Add canMessage Permission
+Update `useUserTier.ts` to include `canMessage` permission (not available for UV users).
+
+#### B. Enforce Permissions in Components
+1. **CreateHub.tsx**: Check `permissions.canPostOpinion` before allowing post
+2. **InlineAnswerInput.tsx**: Check `permissions.canComment` before showing
+3. **PublicProfile.tsx**: Check `permissions.canMessage` before enabling Message button
+4. **Feed.tsx**: Show verification prompt when UV user tries to comment/post
+
+#### C. Show Tier-Gated CTAs with Verification Prompt
+For actions unavailable to current tier:
+- Show the button but with disabled state
+- On click, show VerificationModal prompting to verify account
+
+### Technical Changes
+
+```text
++---------------------------------------+
+| File: src/hooks/useUserTier.ts        |
++---------------------------------------+
+| Add canMessage to TierPermissions     |
+| - guest: false                        |
+| - unverified_user: false              |
+| - verified_user: true                 |
+| - influencer: true                    |
+| - expert: true                        |
++---------------------------------------+
+
++---------------------------------------+
+| Files to Enforce:                     |
++---------------------------------------+
+| - CreateHub.tsx                       |
+| - InlineAnswerInput.tsx               |
+| - PublicProfile.tsx                   |
+| - Feed.tsx (FeedPostCard)             |
+| - PostDetail.tsx                      |
++---------------------------------------+
 ```
 
-This is a one-time data fix.
+### Files Modified
+- `src/hooks/useUserTier.ts`
+- `src/components/create/CreateHub.tsx`
+- `src/components/answer/InlineAnswerInput.tsx`
+- `src/pages/PublicProfile.tsx`
+- `src/pages/Feed.tsx`
+- `src/pages/PostDetail.tsx`
 
 ---
 
@@ -487,35 +307,36 @@ This is a one-time data fix.
 
 ```text
 +------------------------------------------------------------------------+
-|  EXECUTION ORDER (STRICT)                                              |
+|  EXECUTION ORDER                                                        |
 +------------------------------------------------------------------------+
-|  1. Fix Environment Variable Issue (CRITICAL)                          |
-|     - Update all files using import.meta.env.VITE_SUPABASE_URL        |
-|     - Use getSupabaseUrl() from client instead                          |
-|     - This fixes: OTP, LinkedIn, Trending, Markets                      |
+|  1. Fix Navigation Issues (Quick wins)                                 |
+|     - Remove StockDetailNav duplicate                                   |
+|     - Fix profile icon styling in MainLayout                            |
 |                                                                         |
-|  2. Add Privacy Interests Column                                       |
-|     - Database migration                                                |
-|     - Update PrivacySection.tsx                                         |
+|  2. Standardize Content Actions                                        |
+|     - Update PostCard.tsx with Upvote/Downvote/Repost                   |
+|     - Update Feed.tsx FeedPostCard to match                             |
+|     - Fix PostDetail.tsx back button alignment                          |
 |                                                                         |
-|  3. Fix Public Profile Issues                                          |
-|     - Add followers/following modal                                     |
-|     - Fix count updates on follow/unfollow                              |
-|     - Add skills/interests sections                                     |
-|     - Truncate recent posts with "See all" CTA                          |
+|  3. Markets & Trending Improvements                                    |
+|     - Remove Top Influencers widget                                     |
+|     - Add conditional refresh buttons                                   |
+|     - Fix spacing issues                                                |
+|     - Mobile optimization                                               |
 |                                                                         |
-|  4. Fix Edit Profile Button Alignment                                  |
-|     - Update section headers in all edit components                     |
+|  4. Post Creation Enhancements                                         |
+|     - Add community selector to CreateHub                               |
+|     - Fix Brand Collab card layout                                      |
 |                                                                         |
-|  5. Fix Saved Posts Preview                                            |
-|     - Fetch post data with bookmarks                                    |
+|  5. Public Profile Fixes                                               |
+|     - Add Expert badge                                                  |
+|     - Fix See all navigation with tab handling                          |
+|     - Add action CTAs to activity posts                                 |
 |                                                                         |
-|  6. Update Notification Triggers                                       |
-|     - Add title/body to notification inserts                            |
-|     - Create triggers for comments, answers, votes, reposts             |
-|                                                                         |
-|  7. Mark User Profile as Expert                                        |
-|     - Database update for testing                                       |
+|  6. Tier Permission Enforcement                                        |
+|     - Add canMessage to permissions                                     |
+|     - Enforce permissions across all interactive components             |
+|     - Add verification prompts for gated actions                        |
 +------------------------------------------------------------------------+
 ```
 
@@ -523,39 +344,75 @@ This is a one-time data fix.
 
 ## Files Summary
 
-| Issue | New Files | Modified Files |
-|-------|-----------|----------------|
-| 1. Env Var Fix | - | MobileVerificationModal.tsx, LinkedInConnect.tsx, TrendingStructuredFeed.tsx, marketService.ts, news/api/*.ts |
-| 2. Privacy | - | PrivacySection.tsx, useEditProfile.ts + DB migration |
-| 3. Public Profile | FollowersModal.tsx | PublicProfile.tsx, useFollows.ts |
-| 4. Button Align | - | ExperienceSection.tsx, EducationSection.tsx, CertificationsSection.tsx, SkillsSection.tsx |
-| 5. Saved Preview | - | Profile.tsx |
-| 6. Notifications | - | DB triggers |
-| 7. Expert Profile | - | DB update |
+| Issue | Files Modified |
+|-------|----------------|
+| 1. Duplicate Nav | StockDetail.tsx |
+| 2. Content Actions | PostCard.tsx, PostDetail.tsx, Feed.tsx |
+| 3. Profile Icon | MainLayout.tsx |
+| 4. Markets/Trending | TrendingStructuredFeed.tsx, Markets.tsx, StockDetail.tsx, AIInsightPanel.tsx |
+| 5. Post Creation | CreateHub.tsx |
+| 6. Public Profile | PublicProfile.tsx |
+| 7. Permissions | useUserTier.ts, CreateHub.tsx, InlineAnswerInput.tsx, PublicProfile.tsx, Feed.tsx, PostDetail.tsx |
 
 ---
 
-## QA Acceptance Checklist
+## Testing Checklist
 
-- [ ] Mobile OTP: Enter number -> OTP generated -> Verify works
-- [ ] LinkedIn Connect: Click -> OAuth popup -> Returns Connected
-- [ ] Trending tab: Shows news articles
-- [ ] Markets page: Shows real-time stock data
-- [ ] Public Profile: Click followers/following counts -> See modal with list
-- [ ] Follow someone -> Their count increases by 1
-- [ ] Edit Profile: Add buttons are right-aligned in all sections
-- [ ] Interests has privacy toggle
-- [ ] Saved tab: Shows post previews like Posts tab
-- [ ] Notifications: Receive notification when followed/commented/upvoted
-- [ ] Cannot hide own posts
-- [ ] Expert profile has expert badge and features
+### Navigation & UI
+- [ ] Stock detail page shows only one navigation bar
+- [ ] Profile icon in nav has rounded-xl hover state (not circular)
+- [ ] No cyan ring around profile icon in navigation
+- [ ] Back button in PostDetail is left-aligned with content
+
+### Content Actions
+- [ ] All post cards show: Upvote, Downvote, Comment, Repost, Save
+- [ ] 3-dot menu shows: Share, Report spam, Hide user
+- [ ] Report spam and Hide user NOT shown for own posts
+- [ ] Repost opens opinion modal
+
+### Markets & Trending
+- [ ] No "Top Influencers" widget in trending feed
+- [ ] Refresh button hidden when data loads successfully
+- [ ] AI Insight refresh button hidden after insight generated
+- [ ] Reduced spacing on mobile views
+- [ ] Indian indices (NIFTY50, SENSEX) show data
+
+### Posting
+- [ ] Can select public vs community when posting
+- [ ] Brand Collaboration card properly contained
+
+### Profiles
+- [ ] Expert badge shows on public profile
+- [ ] "See all" navigates to posts tab
+- [ ] Activity posts have action CTAs
+
+### Permissions
+- [ ] Unverified user CANNOT comment, post, or message
+- [ ] Message button disabled until following AND verified
+- [ ] Clicking gated action shows verification prompt
+- [ ] Verified users CAN comment, post, message
+- [ ] Expert features only visible to experts
 
 ---
 
 ## Technical Notes
 
-### Why Environment Variables Are Undefined
-In Lovable Cloud, environment variables are injected at build time. However, when using `import.meta.env.VITE_*` in certain contexts (dynamic imports, lazy-loaded components), the values may not be available. The solution is to use the exported `getSupabaseUrl()` function from the Supabase client, which has a fallback to the hardcoded URL.
+### Permission Matrix Reference
+From the user's screenshot, the permission model is:
+- **UV (Unverified)**: Like, Share only
+- **V (Verified)**: Like, Share, Comment, Post, Messages
+- **Influencer**: All V permissions + AI Copilot, Profile promotion, Brand collaboration
+- **Expert**: All Influencer permissions + Paid Listing, Mass Outreach
 
-### Notification Trigger Updates Required
-The current `handle_follow_change()` function creates notifications but without title/body. The notification display component shows "Notification" as fallback title. To fix this properly, all notification-creating triggers need to include descriptive title and body fields.
+### Mobile Optimization Priority
+The Markets page needs significant mobile optimization:
+1. Reduce all padding from p-4 to p-2 or p-3
+2. Make chart height responsive (smaller on mobile)
+3. Collapse indicator panels on mobile
+4. Ensure all text is readable without horizontal scroll
+
+### Community Posts in Following Tab
+When a user posts to a community they're a member of, that post should:
+1. Appear in the community feed
+2. Appear in the user's followers' "Following" tab
+3. NOT appear in public "Pulse" or "Trending" tabs if community is closed
