@@ -7,6 +7,7 @@ interface TierPermissions {
   canLike: boolean;
   canShare: boolean;
   canComment: boolean;
+  canMessage: boolean;
   canAskQuestion: boolean;
   canPostOpinion: boolean;
   canUseAI: boolean;
@@ -52,6 +53,7 @@ export const useUserTier = () => {
       canLike: tier !== 'guest',
       canShare: tier !== 'guest',
       canComment: false,
+      canMessage: false,
       canAskQuestion: false,
       canPostOpinion: false,
       canUseAI: false,
@@ -76,6 +78,7 @@ export const useUserTier = () => {
         return {
           ...base,
           canComment: true,
+          canMessage: true,
           canAskQuestion: true,
           canPostOpinion: true,
           canUseAI: true,
@@ -85,6 +88,7 @@ export const useUserTier = () => {
         return {
           ...base,
           canComment: true,
+          canMessage: true,
           canAskQuestion: true,
           canPostOpinion: true,
           canUseAI: true,
@@ -97,6 +101,7 @@ export const useUserTier = () => {
         return {
           ...base,
           canComment: true,
+          canMessage: true,
           canAskQuestion: true,
           canPostOpinion: true,
           canUseAI: true,

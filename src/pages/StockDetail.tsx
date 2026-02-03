@@ -43,92 +43,7 @@ const TIMEFRAMES = [
   { label: "1Y", interval: "1week", outputsize: 52 },
 ];
 
-function StockDetailNav() {
-  const navigate = useNavigate();
-  const { user, profile } = useAuth();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast({
-        title: "Logged out successfully"
-      });
-      navigate('/');
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
-  };
-
-  const navigation = [
-    { name: 'Home', href: '/home', icon: Home },
-    { name: 'Markets', href: '/markets', icon: BarChart3 },
-    { name: 'Circles', href: '/circles', icon: Users },
-    { name: 'Messages', href: '/inbox', icon: MessageCircle },
-    { name: 'Notifications', href: '/notifications', icon: Bell },
-  ];
-
-  return (
-    <nav className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-4">
-            <div 
-              className="flex items-center space-x-2 cursor-pointer"
-              onClick={() => navigate('/home')}
-            >
-              <div className="h-8 w-8 bg-gradient-to-r from-primary to-primary/80 rounded-xl flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">
-                InvestorPaisa
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            {navigation.map((item) => (
-              <Button
-                key={item.name}
-                variant="ghost"
-                size="sm"
-                className="flex flex-col items-center p-2 h-12 w-12 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
-                onClick={() => navigate(item.href)}
-              >
-                <item.icon className="h-5 w-5" />
-              </Button>
-            ))}
-            
-            <div className="ml-4 flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-1 rounded-full hover:bg-muted"
-                onClick={() => navigate('/profile')}
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                    {profile?.full_name?.charAt(0) || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
+// StockDetailNav removed - using MainLayout navigation instead
 
 export default function StockDetail() {
   const { symbol } = useParams<{ symbol: string }>();
@@ -201,20 +116,17 @@ export default function StockDetail() {
 
   if (!symbol) {
     return (
-      <div className="min-h-screen bg-background">
-        <StockDetailNav />
-        <div className="container mx-auto py-6 px-4">
-          <p>Symbol not found</p>
-        </div>
+      <div className="container mx-auto py-6 px-4">
+        <p>Symbol not found</p>
       </div>
     );
   }
 
+  // Hide refresh button if data loaded successfully
+  const hasData = !!quote && !quoteLoading;
+
   return (
-    <div className="min-h-screen bg-background">
-      <StockDetailNav />
-      
-      <div className="container mx-auto py-6 px-4 max-w-7xl">
+    <div className="container mx-auto py-3 px-2 sm:px-4 max-w-7xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" size="icon" onClick={() => navigate("/markets")}>
@@ -256,10 +168,13 @@ export default function StockDetail() {
               </>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetchQuote()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          {/* Conditional refresh button - only show if no data */}
+          {!hasData && (
+            <Button variant="outline" size="sm" onClick={() => refetchQuote()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          )}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -398,6 +313,5 @@ export default function StockDetail() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

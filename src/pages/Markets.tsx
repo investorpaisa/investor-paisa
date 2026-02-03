@@ -195,9 +195,12 @@ export default function Markets() {
               <p className="text-xs text-muted-foreground">Real-time data</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-9 w-9">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          {/* Only show refresh button if data failed to load */}
+          {(!indianQuotes || indianQuotes.length === 0) && (!globalQuotes || globalQuotes.length === 0) && !indianLoading && !globalLoading && (
+            <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-9 w-9">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {/* Tabs */}

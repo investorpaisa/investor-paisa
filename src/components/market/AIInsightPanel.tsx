@@ -33,15 +33,18 @@ export default function AIInsightPanel({
             AI Insight
             <Sparkles className="h-4 w-4 text-yellow-500" />
           </span>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8"
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-          </Button>
+          {/* Only show refresh if there's an error or no insight yet */}
+          {(error || !insight) && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
