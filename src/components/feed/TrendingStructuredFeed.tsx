@@ -115,56 +115,17 @@ const NewsWidget: React.FC<{ article: NewsArticle }> = ({ article }) => (
   </Card>
 );
 
-// Leaderboard Widget
-const LeaderboardWidget: React.FC<{ entries: LeaderboardEntry[] }> = ({ entries }) => {
-  const navigate = useNavigate();
-  
-  if (!entries || entries.length === 0) return null;
-
-  return (
-    <Card className="border-amber-200/50 bg-gradient-to-br from-amber-50/50 to-transparent">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Crown className="h-4 w-4 text-amber-500" />
-          Top Influencers
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-2">
-        {entries.slice(0, 5).map((entry) => (
-          <div 
-            key={entry.id} 
-            className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-lg p-1 -mx-1"
-            onClick={() => navigate(`/u/${entry.username}`)}
-          >
-            <span className="text-lg w-6 text-center">{entry.badge || entry.rank}</span>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={entry.avatar_url || undefined} />
-              <AvatarFallback className="text-xs">{entry.full_name?.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{entry.full_name}</p>
-              <p className="text-xs text-muted-foreground">
-                <Users className="h-3 w-3 inline mr-0.5" />
-                {entry.followers_count.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-};
+// Leaderboard Widget removed as per user request
 
 export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
   newsArticles = [],
   isLoading = false,
 }) => {
   const [promotedProfiles, setPromotedProfiles] = useState<PromotedProfile[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingPromotions, setLoadingPromotions] = useState(true);
 
   useEffect(() => {
-    const fetchPromotionsAndLeaderboard = async () => {
+    const fetchPromotions = async () => {
       try {
         // Fetch promoted profiles
         const profilesRes = await fetch(
@@ -179,20 +140,6 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
           const data = await profilesRes.json();
           setPromotedProfiles(data.promotions || []);
         }
-
-        // Fetch leaderboard
-        const leaderboardRes = await fetch(
-          `${getSupabaseUrl()}/functions/v1/leaderboard-influencers?limit=10`,
-          {
-            headers: {
-              'Authorization': `Bearer ${getSupabaseAnonKey()}`,
-            },
-          }
-        );
-        if (leaderboardRes.ok) {
-          const data = await leaderboardRes.json();
-          setLeaderboard(data.leaderboard || []);
-        }
       } catch (error) {
         console.error('Failed to fetch promotions:', error);
       } finally {
@@ -200,7 +147,7 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
       }
     };
 
-    fetchPromotionsAndLeaderboard();
+    fetchPromotions();
   }, []);
 
   if (isLoading || loadingPromotions) {
@@ -244,13 +191,6 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
         <NewsWidget key={`news-${newsIndex}`} article={newsArticles[newsIndex]} />
       );
       newsIndex++;
-    }
-
-    // Leaderboard
-    if (leaderboard.length > 0) {
-      feedItems.push(
-        <LeaderboardWidget key="leaderboard" entries={leaderboard} />
-      );
     }
 
     // Remaining news

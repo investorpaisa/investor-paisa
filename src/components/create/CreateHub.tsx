@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link2, X, Loader2, FileText, Lightbulb, Send, ArrowLeft, Users, Handshake, MessageSquare, HelpCircle } from 'lucide-react';
+import { Link2, X, Loader2, FileText, Lightbulb, Send, ArrowLeft, Users, Handshake, MessageSquare, HelpCircle, Globe, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUIStore } from '@/stores/uiStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserTier } from '@/hooks/useUserTier';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 interface ConvertedContent {
   title: string;
@@ -29,6 +31,7 @@ type CreateOption = 'question' | 'opinion' | 'community' | 'collab';
 export const CreateHub: React.FC = () => {
   const { isCreateHubOpen, setCreateHubOpen } = useUIStore();
   const { user } = useAuth();
+  const { permissions, tier, isVerified } = useUserTier();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -43,6 +46,23 @@ export const CreateHub: React.FC = () => {
   // Direct post form state
   const [postTitle, setPostTitle] = useState('');
   const [postBody, setPostBody] = useState('');
+  const [postVisibility, setPostVisibility] = useState<'public' | 'community'>('public');
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
+
+  // Fetch user's communities for the selector
+  const { data: userCommunities } = useQuery({
+    queryKey: ['user-communities', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('community_members')
+        .select('community_id, communities(id, name, is_closed)')
+        .eq('user_id', user.id);
+      if (error) return [];
+      return data?.map((m: any) => m.communities).filter(Boolean) || [];
+    },
+    enabled: !!user?.id,
+  });
 
   const handleConvert = async () => {
     if (!url.trim()) return;
@@ -102,6 +122,12 @@ export const CreateHub: React.FC = () => {
       return;
     }
 
+    // Check permissions for posting
+    if (!permissions.canPostOpinion) {
+      toast.error('Please verify your account to post content');
+      return;
+    }
+
     const content = convertedContent ? editedContent : postBody;
     const title = convertedContent ? convertedContent.title : postTitle;
 
@@ -120,6 +146,7 @@ export const CreateHub: React.FC = () => {
         type: postType,
         link_url: url || null,
         moderation_status: 'approved',
+        community_id: postVisibility === 'community' ? selectedCommunityId : null,
       });
 
       if (error) throw error;
@@ -145,6 +172,8 @@ export const CreateHub: React.FC = () => {
     setSelectedOption(null);
     setPostTitle('');
     setPostBody('');
+    setPostVisibility('public');
+    setSelectedCommunityId(null);
   };
 
   const handleClose = () => {
@@ -380,11 +409,32 @@ export const CreateHub: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    {/* Permission check for unverified users */}
+                    {!permissions.canPostOpinion && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+                        <p className="text-sm text-amber-500 font-medium">
+                          Verify your account to post content
+                        </p>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="mt-2 border-amber-500/30 text-amber-500"
+                          onClick={() => {
+                            handleClose();
+                            navigate('/profile/edit');
+                          }}
+                        >
+                          Verify Now
+                        </Button>
+                      </div>
+                    )}
+                    
                     <Input
                       value={postTitle}
                       onChange={(e) => setPostTitle(e.target.value)}
                       placeholder={selectedOption === 'question' ? "What's your question?" : "Title"}
                       className="bg-secondary/50"
+                      disabled={!permissions.canPostOpinion}
                     />
                     <Textarea
                       value={postBody}
@@ -393,11 +443,74 @@ export const CreateHub: React.FC = () => {
                         ? "Add more context to help others answer..."
                         : "Share your thoughts..."
                       }
-                      className="min-h-[200px] bg-secondary/50"
+                      className="min-h-[150px] bg-secondary/50"
+                      disabled={!permissions.canPostOpinion}
                     />
+                    
+                    {/* Visibility Selector - Public or Community */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Post to</label>
+                      <Select 
+                        value={postVisibility} 
+                        onValueChange={(val: 'public' | 'community') => {
+                          setPostVisibility(val);
+                          if (val === 'public') setSelectedCommunityId(null);
+                        }}
+                        disabled={!permissions.canPostOpinion}
+                      >
+                        <SelectTrigger className="bg-secondary/50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="public">
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-4 w-4" />
+                              Public
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="community">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              Community
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Community selector when visibility is community */}
+                    {postVisibility === 'community' && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Select Community</label>
+                        <Select 
+                          value={selectedCommunityId || ''} 
+                          onValueChange={setSelectedCommunityId}
+                          disabled={!permissions.canPostOpinion}
+                        >
+                          <SelectTrigger className="bg-secondary/50">
+                            <SelectValue placeholder="Choose a community" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {userCommunities?.map((community: any) => (
+                              <SelectItem key={community.id} value={community.id}>
+                                <div className="flex items-center gap-2">
+                                  {community.is_closed ? <Lock className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
+                                  {community.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                            {(!userCommunities || userCommunities.length === 0) && (
+                              <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                                You haven't joined any communities yet
+                              </div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <Button
                       onClick={handlePublish}
-                      disabled={!postTitle.trim() || isSubmitting}
+                      disabled={!postTitle.trim() || isSubmitting || !permissions.canPostOpinion || (postVisibility === 'community' && !selectedCommunityId)}
                       className="w-full gap-2 bg-primary text-primary-foreground h-12 rounded-xl"
                     >
                       {isSubmitting ? (

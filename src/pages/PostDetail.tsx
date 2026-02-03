@@ -8,10 +8,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Heart, MessageSquare, Share2, Bookmark, ArrowLeft, TrendingUp, AlertCircle } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, ArrowLeft, TrendingUp, AlertCircle, Repeat, MoreHorizontal, Flag, EyeOff, Link } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
+import { useIsReposted, useCreateRepostWithOpinion, useRemoveRepost } from '@/hooks/useReposts';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { RepostWithOpinionModal } from '@/components/posts/RepostWithOpinionModal';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { InlineAnswerInput } from '@/components/answer/InlineAnswerInput';
@@ -146,9 +155,16 @@ const PostDetail: React.FC = () => {
 
   const { data: userReactions } = useUserReaction(postId || '', 'post');
   const { data: isBookmarked } = useIsBookmarked(postId || '');
-  const isLiked = userReactions?.some(r => r.reaction_type === 'like') || false;
+  const { data: isReposted } = useIsReposted(postId || '');
+  const createRepostWithOpinion = useCreateRepostWithOpinion();
+  const removeRepost = useRemoveRepost();
+  
+  const [showRepostModal, setShowRepostModal] = useState(false);
+  
+  const isUpvoted = userReactions?.some(r => r.reaction_type === 'upvote') || false;
+  const isDownvoted = userReactions?.some(r => r.reaction_type === 'downvote') || false;
 
-  const handleLike = () => {
+  const handleUpvote = () => {
     if (!user) {
       navigate('/auth');
       return;
@@ -158,8 +174,38 @@ const PostDetail: React.FC = () => {
     toggleReaction.mutate({
       entityId: postId,
       entityType: 'post',
-      reactionType: 'like',
+      reactionType: 'upvote',
     });
+  };
+
+  const handleDownvote = () => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    if (!postId) return;
+    
+    toggleReaction.mutate({
+      entityId: postId,
+      entityType: 'post',
+      reactionType: 'downvote',
+    });
+  };
+
+  const handleRepostClick = () => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    if (isReposted) {
+      removeRepost.mutate(postId || '');
+    } else {
+      setShowRepostModal(true);
+    }
+  };
+
+  const handleRepostSubmit = async (postIdParam: string, opinion: string | undefined) => {
+    await createRepostWithOpinion.mutateAsync({ postId: postIdParam, opinion });
   };
 
   const handleSave = () => {
@@ -288,35 +334,116 @@ const PostDetail: React.FC = () => {
               <p className="text-foreground whitespace-pre-wrap leading-relaxed">{post.body}</p>
             )}
           </CardContent>
-          <CardFooter className="p-6 pt-0 flex justify-between border-t border-border/50 mt-4 pt-4">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={`gap-2 ${isLiked ? 'text-primary' : ''}`}
-                onClick={handleLike}
-              >
-                <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
-                <span>{post.like_count || 0}</span>
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <MessageSquare className="h-4 w-4" />
-                <span>{answers?.length || 0}</span>
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2" onClick={handleShare}>
-                <Share2 className="h-4 w-4" />
-              </Button>
+          <CardFooter className="p-6 pt-0 border-t border-border/50 mt-4 pt-4">
+            <div className="flex items-center justify-between w-full">
+              {/* Left: Action buttons */}
+              <div className="flex items-center gap-2">
+                {/* Upvote */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`gap-1.5 ${isUpvoted ? 'text-primary' : ''}`}
+                  onClick={handleUpvote}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                  <span>{(post as any).upvote_count || 0}</span>
+                </Button>
+                
+                {/* Downvote */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`gap-1.5 ${isDownvoted ? 'text-destructive' : ''}`}
+                  onClick={handleDownvote}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+                
+                {/* Comment */}
+                <Button variant="ghost" size="sm" className="gap-1.5">
+                  <MessageSquare className="h-4 w-4" />
+                  <span>{answers?.length || 0}</span>
+                </Button>
+                
+                {/* Repost */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`gap-1.5 ${isReposted ? 'text-primary' : ''}`}
+                  onClick={handleRepostClick}
+                >
+                  <Repeat className="h-4 w-4" />
+                </Button>
+                
+                {/* Save */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className={isBookmarked ? 'text-primary' : ''}
+                  onClick={handleSave}
+                >
+                  <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
+                </Button>
+              </div>
+              
+              {/* Right: 3-dot menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleShare}>
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(window.location.href);
+                      toast.success('Link copied!');
+                    } catch {
+                      toast.error('Failed to copy');
+                    }
+                  }}>
+                    <Link className="mr-2 h-4 w-4" />
+                    Copy link
+                  </DropdownMenuItem>
+                  {/* Only show report/hide for other users' posts */}
+                  {post.author_id !== user?.id && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive">
+                        <Flag className="mr-2 h-4 w-4" />
+                        Report content
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <EyeOff className="mr-2 h-4 w-4" />
+                        Hide posts from this user
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className={isBookmarked ? 'text-primary' : ''}
-              onClick={handleSave}
-            >
-              <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
-            </Button>
           </CardFooter>
         </Card>
+
+        {/* Repost Modal */}
+        <RepostWithOpinionModal
+          open={showRepostModal}
+          onOpenChange={setShowRepostModal}
+          post={{
+            id: post.id,
+            title: post.title,
+            body: post.body,
+            type: post.type,
+            author: post.author,
+            created_at: post.created_at,
+          }}
+          onRepost={handleRepostSubmit}
+          isLoading={createRepostWithOpinion.isPending}
+        />
 
         {/* Answers Section */}
         <div className="space-y-4">

@@ -13,7 +13,7 @@ import { MobileTopBar } from '@/components/layout/MobileTopBar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
 import { RoleAwareCreateButton } from '@/components/create/RoleAwareCreateButton';
-import { AvatarWithRing } from '@/components/ui/avatar-with-ring';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -135,15 +135,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="p-1 rounded-full hover:bg-secondary"
+                    className="flex items-center justify-center p-2 h-10 w-10 rounded-xl transition-all hover:bg-secondary"
                     onClick={() => navigate('/profile')}
                   >
-                    <AvatarWithRing 
-                      src={profile?.avatar_url || user?.user_metadata?.avatar_url}
-                      fallback={profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
-                      completionPercentage={(profile as any)?.profile_completeness_score || 0}
-                      className="h-8 w-8"
-                    />
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={profile?.avatar_url || user?.user_metadata?.avatar_url} />
+                      <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                        {profile?.full_name?.charAt(0) || user?.user_metadata?.full_name?.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
                   </Button>
                 ) : (
                   <Button

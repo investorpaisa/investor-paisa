@@ -301,6 +301,16 @@ const PublicProfile: React.FC = () => {
                 {profile.is_verified && (
                   <TrendingUp className="h-4 w-4 text-primary" />
                 )}
+                {(profile as any).tier === 'expert' && (
+                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px]">
+                    Expert
+                  </Badge>
+                )}
+                {(profile as any).tier === 'influencer' && (
+                  <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
+                    Influencer
+                  </Badge>
+                )}
               </div>
               
               <p className="text-sm text-muted-foreground mb-3">@{profile.username || 'user'}</p>
