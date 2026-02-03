@@ -80,7 +80,7 @@ const PromotedProfileCard: React.FC<{ profiles: PromotedProfile[] }> = ({ profil
             size="sm" 
             variant="outline" 
             className="shrink-0"
-            onClick={() => navigate(`/profile/${profile.username}`)}
+            onClick={() => navigate(`/u/${profile.username}`)}
           >
             View
           </Button>
@@ -134,7 +134,7 @@ const LeaderboardWidget: React.FC<{ entries: LeaderboardEntry[] }> = ({ entries 
           <div 
             key={entry.id} 
             className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-lg p-1 -mx-1"
-            onClick={() => navigate(`/profile/${entry.username}`)}
+            onClick={() => navigate(`/u/${entry.username}`)}
           >
             <span className="text-lg w-6 text-center">{entry.badge || entry.rank}</span>
             <Avatar className="h-8 w-8">

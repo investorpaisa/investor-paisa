@@ -65,10 +65,18 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
 
   // Validate JSON response helper
   const parseJsonResponse = async (response: Response) => {
+    // Check for 404 - function not deployed
+    if (response.status === 404) {
+      console.error('[OTP UI] Edge function not found (404)');
+      throw new Error('Mobile verification service is temporarily unavailable. Please try again later.');
+    }
+    
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      console.error('[OTP UI] Invalid response content-type:', contentType);
-      throw new Error('Server returned invalid response. Please try again.');
+      console.error('[OTP UI] Invalid response content-type:', contentType, 'Status:', response.status);
+      const text = await response.text().catch(() => 'Unable to read response');
+      console.error('[OTP UI] Response body:', text.substring(0, 200));
+      throw new Error('Mobile verification service returned an unexpected response. Please try again.');
     }
     return response.json();
   };
@@ -111,13 +119,23 @@ export const MobileVerificationModal: React.FC<MobileVerificationModalProps> = (
       const data = await parseJsonResponse(response);
 
       if (data.success) {
-        if (data.smsSent) {
-          toast.success('OTP sent to your phone!');
-        } else {
-          toast.success('OTP generated');
-        }
         setFlowState('sent');
         setCountdown(60);
+        
+        if (data.smsSent) {
+          toast.success('OTP sent to your phone!');
+        } else if (data.dev_otp) {
+          // Trial/dev mode - show OTP in modal for testing
+          setDevOtp(data.dev_otp);
+          toast.info('SMS service in trial mode - use the code shown below');
+          if (data.smsError) {
+            console.warn('[OTP UI] SMS Error (trial mode):', data.smsError);
+          }
+        } else {
+          toast.success('OTP generated - check your phone');
+        }
+        
+        // Store dev_otp if available
         if (data.dev_otp) {
           setDevOtp(data.dev_otp);
         }

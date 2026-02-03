@@ -101,8 +101,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let authChangeTimeout: ReturnType<typeof setTimeout> | null = null;
     let isMounted = true;
 
+    // Check for OAuth callback in URL hash (for Google auth)
+    const checkOAuthCallback = async () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        // Clear the hash to prevent re-processing
+        window.history.replaceState({}, '', window.location.pathname + window.location.search);
+        // Wait for Supabase to process the token from the URL
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    };
+
     // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
+    const initSession = async () => {
+      await checkOAuthCallback();
+      
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
       if (!isMounted) return;
       
       setSession(initialSession);
@@ -114,7 +128,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       
       if (isMounted) setIsLoading(false);
-    });
+    };
+
+    initSession();
 
     // Listen for auth changes with debouncing to prevent rapid state updates
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {

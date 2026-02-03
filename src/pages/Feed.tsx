@@ -696,7 +696,7 @@ const Feed: React.FC = () => {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleProfileClick = (username: string | null) => {
-    if (username) navigate(`/profile/${username}`);
+    if (username) navigate(`/u/${username}`);
   };
 
   const handlePostClick = (postId: string) => {

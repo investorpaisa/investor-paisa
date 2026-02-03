@@ -1,23 +1,36 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
-  ArrowLeft, MapPin, Calendar, TrendingUp, Target, AlertCircle, ExternalLink
+  ArrowLeft, MapPin, Calendar, TrendingUp, Target, AlertCircle, ExternalLink,
+  MessageCircle, UserPlus, UserCheck, Briefcase, GraduationCap, Award, Send, Loader2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
+import { useIsFollowing, useToggleFollow } from '@/hooks/useFollows';
+import { useCreateConversation } from '@/hooks/useSendMessage';
+import { UnfollowConfirmModal } from '@/components/profile/UnfollowConfirmModal';
+import { toast } from 'sonner';
 
 const PublicProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const [showUnfollowModal, setShowUnfollowModal] = useState(false);
+  const [showMessageInput, setShowMessageInput] = useState(false);
+  const [messageText, setMessageText] = useState('');
 
   // Fetch profile by username from public view
   const { data: profile, isLoading, error } = useQuery({
@@ -37,8 +50,79 @@ const PublicProfile: React.FC = () => {
     enabled: !!username,
   });
 
+  // Fetch full profile for privacy settings
+  const { data: fullProfile } = useQuery({
+    queryKey: ['public-profile-full', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('privacy_experience, privacy_education, privacy_certifications, privacy_skills')
+        .eq('id', profile.id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!profile?.id,
+  });
+
   // Check if viewing own public profile
   const isOwnProfile = user?.id === profile?.id;
+
+  // Follow status and toggle
+  const { data: isFollowing, isLoading: followLoading } = useIsFollowing(profile?.id);
+  const toggleFollow = useToggleFollow();
+  const createConversation = useCreateConversation();
+
+  // Fetch user's experience
+  const { data: experiences } = useQuery({
+    queryKey: ['public-profile-experience', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { data, error } = await supabase
+        .from('user_experiences')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('is_current', { ascending: false })
+        .order('start_year', { ascending: false });
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!profile?.id && fullProfile?.privacy_experience !== false,
+  });
+
+  // Fetch user's education
+  const { data: educations } = useQuery({
+    queryKey: ['public-profile-education', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { data, error } = await supabase
+        .from('user_educations')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('is_current', { ascending: false })
+        .order('start_year', { ascending: false });
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!profile?.id && fullProfile?.privacy_education !== false,
+  });
+
+  // Fetch user's certifications
+  const { data: certifications } = useQuery({
+    queryKey: ['public-profile-certifications', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { data, error } = await supabase
+        .from('user_certifications')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('issue_year', { ascending: false });
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!profile?.id && fullProfile?.privacy_certifications !== false,
+  });
 
   // Fetch user's posts
   const { data: userPosts, isLoading: postsLoading } = useQuery({
@@ -60,6 +144,57 @@ const PublicProfile: React.FC = () => {
     },
     enabled: !!profile?.id,
   });
+
+  const handleFollowClick = () => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    
+    if (isFollowing) {
+      setShowUnfollowModal(true);
+    } else {
+      toggleFollow.mutate(profile!.id);
+    }
+  };
+
+  const handleConfirmUnfollow = () => {
+    toggleFollow.mutate(profile!.id, {
+      onSuccess: () => {
+        setShowUnfollowModal(false);
+      },
+    });
+  };
+
+  const handleMessageClick = () => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    
+    if (!isFollowing) {
+      toast.error('You need to follow this user before you can message them');
+      return;
+    }
+    
+    setShowMessageInput(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim()) return;
+    
+    try {
+      await createConversation.mutateAsync({
+        targetUserId: profile!.id,
+        initialMessage: messageText.trim(),
+      });
+      setMessageText('');
+      setShowMessageInput(false);
+      navigate('/inbox');
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -105,6 +240,7 @@ const PublicProfile: React.FC = () => {
   };
 
   const profileGoals = (profile as any).goals || [];
+  const bioNeedsTruncation = profile.bio && profile.bio.length > 150;
 
   return (
     <div className="max-w-2xl mx-auto py-4 px-2 sm:px-4 space-y-4">
@@ -152,9 +288,21 @@ const PublicProfile: React.FC = () => {
               
               <p className="text-sm text-muted-foreground mb-3">@{profile.username || 'user'}</p>
               
-              {/* Bio */}
+              {/* Bio with See more/less */}
               {profile.bio && (
-                <p className="text-sm text-muted-foreground line-clamp-3 text-left mb-3">{profile.bio}</p>
+                <div className="mb-3">
+                  <p className={`text-sm text-muted-foreground text-left ${!bioExpanded && bioNeedsTruncation ? 'line-clamp-3' : ''}`}>
+                    {profile.bio}
+                  </p>
+                  {bioNeedsTruncation && (
+                    <button 
+                      onClick={() => setBioExpanded(!bioExpanded)}
+                      className="text-primary text-sm mt-1 hover:underline"
+                    >
+                      {bioExpanded ? 'See less' : 'See more'}
+                    </button>
+                  )}
+                </div>
               )}
               
               {/* Goals */}
@@ -187,7 +335,7 @@ const PublicProfile: React.FC = () => {
                 </span>
               </div>
               
-              <div className="flex gap-4">
+              <div className="flex gap-4 mb-4">
                 <div>
                   <span className="font-bold text-sm">{profile.followers_count || 0}</span>
                   <span className="text-muted-foreground text-xs ml-1">Followers</span>
@@ -201,10 +349,160 @@ const PublicProfile: React.FC = () => {
                   <span className="text-muted-foreground text-xs ml-1">Posts</span>
                 </div>
               </div>
+
+              {/* Follow/Message buttons - only show for other users */}
+              {!isOwnProfile && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleFollowClick}
+                    disabled={followLoading || toggleFollow.isPending}
+                    variant={isFollowing ? 'outline' : 'default'}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    {toggleFollow.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isFollowing ? (
+                      <>
+                        <UserCheck className="h-4 w-4" />
+                        Following
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4" />
+                        Follow
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleMessageClick}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    disabled={!isFollowing}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Message
+                  </Button>
+                </div>
+              )}
+
+              {/* Message input */}
+              {showMessageInput && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4 space-y-2"
+                >
+                  <Textarea
+                    placeholder="Write a message..."
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    className="resize-none"
+                    rows={3}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setShowMessageInput(false);
+                        setMessageText('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={handleSendMessage}
+                      disabled={!messageText.trim() || createConversation.isPending}
+                      className="gap-2"
+                    >
+                      {createConversation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      Send
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Experience Section */}
+      {fullProfile?.privacy_experience !== false && experiences && experiences.length > 0 && (
+        <Card className="border border-border/50">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-primary" />
+              Experience
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2 space-y-3">
+            {experiences.map((exp) => (
+              <div key={exp.id} className="p-3 rounded-lg bg-secondary/30">
+                <h4 className="font-medium text-sm">{exp.title}</h4>
+                <p className="text-xs text-muted-foreground">{exp.company}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {exp.start_month && `${exp.start_month}/`}{exp.start_year} - {exp.is_current ? 'Present' : `${exp.end_month && `${exp.end_month}/`}${exp.end_year}`}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Education Section */}
+      {fullProfile?.privacy_education !== false && educations && educations.length > 0 && (
+        <Card className="border border-border/50">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-primary" />
+              Education
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2 space-y-3">
+            {educations.map((edu) => (
+              <div key={edu.id} className="p-3 rounded-lg bg-secondary/30">
+                <h4 className="font-medium text-sm">{edu.school}</h4>
+                <p className="text-xs text-muted-foreground">{edu.degree}{edu.field_of_study && `, ${edu.field_of_study}`}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {edu.start_year} - {edu.is_current ? 'Present' : edu.end_year}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Certifications Section */}
+      {fullProfile?.privacy_certifications !== false && certifications && certifications.length > 0 && (
+        <Card className="border border-border/50">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Award className="h-4 w-4 text-primary" />
+              Certifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2 space-y-3">
+            {certifications.map((cert) => (
+              <div key={cert.id} className="p-3 rounded-lg bg-secondary/30">
+                <h4 className="font-medium text-sm">{cert.name}</h4>
+                <p className="text-xs text-muted-foreground">{cert.issuing_organization}</p>
+                {cert.issue_year && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Issued {cert.issue_month && `${cert.issue_month}/`}{cert.issue_year}
+                  </p>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Posts Section */}
       <Card className="border border-border/50">
@@ -254,6 +552,15 @@ const PublicProfile: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Unfollow Confirmation Modal */}
+      <UnfollowConfirmModal
+        isOpen={showUnfollowModal}
+        onClose={() => setShowUnfollowModal(false)}
+        onConfirm={handleConfirmUnfollow}
+        username={profile.username || 'user'}
+        isLoading={toggleFollow.isPending}
+      />
     </div>
   );
 };
