@@ -12,7 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { 
   Edit, Mail, MessageCircle, Calendar, Briefcase, 
-  MapPin, Award, TrendingUp, Target, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut, Bookmark, ExternalLink
+  MapPin, Award, TrendingUp, Target, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut, Bookmark, ExternalLink,
+  ArrowUp, ArrowDown, Repeat
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -478,12 +479,19 @@ const Profile = () => {
                   {post.body && (
                     <p className="text-muted-foreground text-xs line-clamp-2 mt-1">{post.body}</p>
                   )}
-                  <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                    <div className="flex items-center gap-3">
-                      <span>{post.like_count || 0} likes</span>
-                      <span className="flex items-center">
-                        <MessageCircle className="mr-1 h-3 w-3" />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1">
+                        <ArrowUp className="h-3 w-3" />
+                        {(post as any).upvote_count || post.like_count || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="h-3 w-3" />
                         {post.comment_count || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Repeat className="h-3 w-3" />
+                        {(post as any).share_count || 0}
                       </span>
                     </div>
                     <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
@@ -640,11 +648,14 @@ const Profile = () => {
                         {bookmark.post.body && (
                           <p className="text-muted-foreground text-xs line-clamp-2 mt-1">{bookmark.post.body}</p>
                         )}
-                        <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                          <div className="flex items-center gap-3">
-                            <span>{bookmark.post.like_count || 0} likes</span>
-                            <span className="flex items-center">
-                              <MessageCircle className="mr-1 h-3 w-3" />
+                        <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1">
+                              <ArrowUp className="h-3 w-3" />
+                              {(bookmark.post as any).upvote_count || bookmark.post.like_count || 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MessageCircle className="h-3 w-3" />
                               {bookmark.post.comment_count || 0}
                             </span>
                           </div>
