@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Linkedin, Check, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, getSupabaseUrl } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface LinkedInConnectProps {
@@ -47,7 +47,7 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
       const redirectUri = `${window.location.origin}/profile/edit`;
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-linkedin-connect`,
+        `${getSupabaseUrl()}/functions/v1/auth-linkedin-connect`,
         {
           method: 'POST',
           headers: {
@@ -108,7 +108,7 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
           const redirectUri = `${window.location.origin}/profile/edit`;
 
           const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-linkedin-connect`,
+            `${getSupabaseUrl()}/functions/v1/auth-linkedin-connect`,
             {
               method: 'POST',
               headers: {

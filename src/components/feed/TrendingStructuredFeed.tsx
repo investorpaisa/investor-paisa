@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, Crown, ExternalLink, Star, Users, Newspaper } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
 interface PromotedProfile {
   id: string;
   full_name: string | null;
@@ -168,7 +168,12 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
       try {
         // Fetch promoted profiles
         const profilesRes = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/promotions-profiles?type=profile&limit=3`
+          `${getSupabaseUrl()}/functions/v1/promotions-profiles?type=profile&limit=3`,
+          {
+            headers: {
+              'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+            },
+          }
         );
         if (profilesRes.ok) {
           const data = await profilesRes.json();
@@ -177,7 +182,12 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
 
         // Fetch leaderboard
         const leaderboardRes = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/leaderboard-influencers?limit=10`
+          `${getSupabaseUrl()}/functions/v1/leaderboard-influencers?limit=10`,
+          {
+            headers: {
+              'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+            },
+          }
         );
         if (leaderboardRes.ok) {
           const data = await leaderboardRes.json();

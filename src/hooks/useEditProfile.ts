@@ -67,6 +67,7 @@ export interface ProfileFormData {
   privacy_education?: boolean;
   privacy_certifications?: boolean;
   privacy_skills?: boolean;
+  privacy_interests?: boolean;
 }
 
 export interface EditProfileState {
@@ -99,6 +100,7 @@ export function useEditProfile() {
       privacy_education: true,
       privacy_certifications: true,
       privacy_skills: true,
+      privacy_interests: true,
     },
     experiences: [],
     educations: [],
@@ -207,6 +209,7 @@ export function useEditProfile() {
           privacy_education: (profileData as any).privacy_education !== false,
           privacy_certifications: (profileData as any).privacy_certifications !== false,
           privacy_skills: (profileData as any).privacy_skills !== false,
+          privacy_interests: (profileData as any).privacy_interests !== false,
         },
         goals: (profileData as any).goals || [],
         interests: (profileData as any).interests || [],
@@ -298,6 +301,7 @@ export function useEditProfile() {
           privacy_education: state.profile.privacy_education,
           privacy_certifications: state.profile.privacy_certifications,
           privacy_skills: state.profile.privacy_skills,
+          privacy_interests: state.profile.privacy_interests,
         } as any)
         .eq('id', user.id);
       

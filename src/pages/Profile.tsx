@@ -132,13 +132,13 @@ const Profile = () => {
     enabled: !!profile?.id,
   });
 
-  // Fetch user's bookmarks (saved items)
+  // Fetch user's bookmarks (saved items) with post details
   const { data: userBookmarks, isLoading: bookmarksLoading } = useQuery({
     queryKey: ['user-bookmarks', profile?.id],
     queryFn: async () => {
       if (!profile?.id || !isOwnProfile) return [];
 
-      const { data, error } = await supabase
+      const { data: bookmarks, error } = await supabase
         .from('bookmarks')
         .select('id, entity_id, entity_type, created_at')
         .eq('user_id', profile.id)
@@ -146,7 +146,21 @@ const Profile = () => {
         .limit(10);
 
       if (error) throw error;
-      return data || [];
+      if (!bookmarks) return [];
+
+      // Fetch post details for post bookmarks
+      const postIds = bookmarks.filter(b => b.entity_type === 'post').map(b => b.entity_id);
+      const { data: posts } = await supabase
+        .from('posts')
+        .select('id, title, body, type, like_count, comment_count, created_at')
+        .in('id', postIds);
+
+      const postsMap = new Map(posts?.map(p => [p.id, p]) || []);
+      
+      return bookmarks.map(b => ({
+        ...b,
+        post: b.entity_type === 'post' ? postsMap.get(b.entity_id) : null,
+      }));
     },
     enabled: !!profile?.id && isOwnProfile,
   });
@@ -604,7 +618,7 @@ const Profile = () => {
                 ))}
               </div>
             ) : userBookmarks && userBookmarks.length > 0 ? (
-              userBookmarks.map((bookmark) => (
+              userBookmarks.map((bookmark: any) => (
                 <Card 
                   key={bookmark.id} 
                   className="border border-border/50 cursor-pointer hover:border-primary/30 transition-colors"
@@ -615,15 +629,41 @@ const Profile = () => {
                   }}
                 >
                   <CardContent className="p-3 sm:p-4 text-left">
-                    <div className="flex items-center gap-2">
-                      <Bookmark className="h-4 w-4 text-primary" />
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {bookmark.entity_type}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Saved {formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}
-                    </p>
+                    {bookmark.post ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {bookmark.post.type || 'post'}
+                          </Badge>
+                        </div>
+                        <h4 className="font-medium text-sm line-clamp-1">{bookmark.post.title || 'Untitled'}</h4>
+                        {bookmark.post.body && (
+                          <p className="text-muted-foreground text-xs line-clamp-2 mt-1">{bookmark.post.body}</p>
+                        )}
+                        <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                          <div className="flex items-center gap-3">
+                            <span>{bookmark.post.like_count || 0} likes</span>
+                            <span className="flex items-center">
+                              <MessageCircle className="mr-1 h-3 w-3" />
+                              {bookmark.post.comment_count || 0}
+                            </span>
+                          </div>
+                          <span>{formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Bookmark className="h-4 w-4 text-primary" />
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {bookmark.entity_type}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Saved {formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}
+                        </p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               ))

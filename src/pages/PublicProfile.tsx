@@ -12,13 +12,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   ArrowLeft, MapPin, Calendar, TrendingUp, Target, AlertCircle, ExternalLink,
-  MessageCircle, UserPlus, UserCheck, Briefcase, GraduationCap, Award, Send, Loader2
+  MessageCircle, UserPlus, UserCheck, Briefcase, GraduationCap, Award, Send, Loader2, Lightbulb, Heart
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { useIsFollowing, useToggleFollow } from '@/hooks/useFollows';
 import { useCreateConversation } from '@/hooks/useSendMessage';
 import { UnfollowConfirmModal } from '@/components/profile/UnfollowConfirmModal';
+import { FollowersModal } from '@/components/profile/FollowersModal';
 import { toast } from 'sonner';
 
 const PublicProfile: React.FC = () => {
@@ -31,7 +32,8 @@ const PublicProfile: React.FC = () => {
   const [showUnfollowModal, setShowUnfollowModal] = useState(false);
   const [showMessageInput, setShowMessageInput] = useState(false);
   const [messageText, setMessageText] = useState('');
-
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [showFollowingModal, setShowFollowingModal] = useState(false);
   // Fetch profile by username from public view
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ['public-profile', username],
@@ -57,7 +59,7 @@ const PublicProfile: React.FC = () => {
       if (!profile?.id) return null;
       const { data, error } = await supabase
         .from('profiles')
-        .select('privacy_experience, privacy_education, privacy_certifications, privacy_skills')
+        .select('privacy_experience, privacy_education, privacy_certifications, privacy_skills, privacy_interests, interests')
         .eq('id', profile.id)
         .single();
       if (error) return null;
@@ -124,7 +126,22 @@ const PublicProfile: React.FC = () => {
     enabled: !!profile?.id && fullProfile?.privacy_certifications !== false,
   });
 
-  // Fetch user's posts
+  // Fetch user's skills
+  const { data: skills } = useQuery({
+    queryKey: ['public-profile-skills', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { data, error } = await supabase
+        .from('user_skills')
+        .select('skill_name')
+        .eq('user_id', profile.id);
+      if (error) return [];
+      return (data || []).map(s => s.skill_name);
+    },
+    enabled: !!profile?.id && fullProfile?.privacy_skills !== false,
+  });
+
+  // Fetch user's posts - limit to 2 for truncation
   const { data: userPosts, isLoading: postsLoading } = useQuery({
     queryKey: ['public-profile-posts', profile?.id],
     queryFn: async () => {
@@ -336,14 +353,20 @@ const PublicProfile: React.FC = () => {
               </div>
               
               <div className="flex gap-4 mb-4">
-                <div>
+                <button 
+                  onClick={() => profile?.id && setShowFollowersModal(true)}
+                  className="text-left hover:bg-secondary/50 rounded-lg p-1 -m-1 transition-colors"
+                >
                   <span className="font-bold text-sm">{profile.followers_count || 0}</span>
                   <span className="text-muted-foreground text-xs ml-1">Followers</span>
-                </div>
-                <div>
+                </button>
+                <button 
+                  onClick={() => profile?.id && setShowFollowingModal(true)}
+                  className="text-left hover:bg-secondary/50 rounded-lg p-1 -m-1 transition-colors"
+                >
                   <span className="font-bold text-sm">{profile.following_count || 0}</span>
                   <span className="text-muted-foreground text-xs ml-1">Following</span>
-                </div>
+                </button>
                 <div>
                   <span className="font-bold text-sm">{profile.posts_count || 0}</span>
                   <span className="text-muted-foreground text-xs ml-1">Posts</span>
@@ -504,14 +527,67 @@ const PublicProfile: React.FC = () => {
         </Card>
       )}
 
-      {/* Posts Section */}
+      {/* Skills Section */}
+      {fullProfile?.privacy_skills !== false && skills && skills.length > 0 && (
+        <Card className="border border-border/50">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-primary" />
+              Skills
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2">
+            <div className="flex flex-wrap gap-2">
+              {skills.map((skill, index) => (
+                <Badge key={index} variant="secondary" className="bg-primary/10 text-primary border-primary/30">
+                  {skill}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Interests Section */}
+      {fullProfile?.privacy_interests !== false && fullProfile?.interests && fullProfile.interests.length > 0 && (
+        <Card className="border border-border/50">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Heart className="h-4 w-4 text-primary" />
+              Interests
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2">
+            <div className="flex flex-wrap gap-2">
+              {(fullProfile.interests as string[]).map((interest, index) => (
+                <Badge key={index} variant="outline" className="text-xs">
+                  {interest}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Posts Section - LinkedIn style: show only 1-2 posts with See all */}
       <Card className="border border-border/50">
-        <CardContent className="p-4">
-          <h2 className="text-base font-semibold mb-4">Recent Posts</h2>
-          
+        <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
+          {userPosts && userPosts.length > 2 && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate(`/u/${profile.username}?tab=posts`)}
+              className="text-primary text-xs h-8"
+            >
+              See all ({userPosts.length})
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="p-4 pt-2">
           {postsLoading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
+              {[1, 2].map((i) => (
                 <div key={i} className="p-3 rounded-lg bg-secondary/30">
                   <Skeleton className="h-4 w-3/4 mb-2" />
                   <Skeleton className="h-3 w-1/2" />
@@ -520,7 +596,7 @@ const PublicProfile: React.FC = () => {
             </div>
           ) : userPosts && userPosts.length > 0 ? (
             <div className="space-y-3">
-              {userPosts.map((post) => (
+              {userPosts.slice(0, 2).map((post) => (
                 <motion.div
                   key={post.id}
                   initial={{ opacity: 0 }}
@@ -548,7 +624,7 @@ const PublicProfile: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-6">No posts yet</p>
+            <p className="text-sm text-muted-foreground text-center py-6">No activity yet</p>
           )}
         </CardContent>
       </Card>
@@ -560,6 +636,24 @@ const PublicProfile: React.FC = () => {
         onConfirm={handleConfirmUnfollow}
         username={profile.username || 'user'}
         isLoading={toggleFollow.isPending}
+      />
+
+      {/* Followers Modal */}
+      <FollowersModal
+        isOpen={showFollowersModal}
+        onClose={() => setShowFollowersModal(false)}
+        userId={profile.id}
+        type="followers"
+        username={profile.username || 'user'}
+      />
+
+      {/* Following Modal */}
+      <FollowersModal
+        isOpen={showFollowingModal}
+        onClose={() => setShowFollowingModal(false)}
+        userId={profile.id}
+        type="following"
+        username={profile.username || 'user'}
       />
     </div>
   );

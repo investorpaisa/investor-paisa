@@ -9,11 +9,13 @@ interface PrivacySectionProps {
   privacyEducation: boolean;
   privacyCertifications: boolean;
   privacySkills: boolean;
+  privacyInterests?: boolean;
   onUpdate: (updates: {
     privacy_experience?: boolean;
     privacy_education?: boolean;
     privacy_certifications?: boolean;
     privacy_skills?: boolean;
+    privacy_interests?: boolean;
   }) => void;
 }
 
@@ -22,6 +24,7 @@ export const PrivacySection: React.FC<PrivacySectionProps> = ({
   privacyEducation,
   privacyCertifications,
   privacySkills,
+  privacyInterests = true,
   onUpdate,
 }) => {
   const privacySettings = [
@@ -48,6 +51,12 @@ export const PrivacySection: React.FC<PrivacySectionProps> = ({
       label: 'Skills',
       description: 'Show your skills on public profile',
       value: privacySkills,
+    },
+    {
+      key: 'privacy_interests',
+      label: 'Interests',
+      description: 'Show your financial interests on public profile',
+      value: privacyInterests,
     },
   ];
 
