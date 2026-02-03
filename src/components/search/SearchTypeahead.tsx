@@ -89,7 +89,7 @@ export const SearchTypeahead: React.FC<SearchTypeaheadProps> = ({ query, onClose
 
   const handleUserClick = (username: string | null) => {
     if (username) {
-      navigate(`/profile/${username}`);
+      navigate(`/u/${username}`);
       onResultClick();
     }
   };

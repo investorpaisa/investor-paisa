@@ -12,10 +12,19 @@ interface LinkedInConnectProps {
 
 // Validate JSON response helper
 const parseJsonResponse = async (response: Response) => {
+  // Check for 404 - function not deployed
+  if (response.status === 404) {
+    console.error('[LinkedIn] Edge function not found (404)');
+    throw new Error('LinkedIn Connect service is temporarily unavailable. Please try again later.');
+  }
+  
   const contentType = response.headers.get('content-type');
   if (!contentType || !contentType.includes('application/json')) {
-    console.error('[LinkedIn] Invalid response content-type:', contentType);
-    throw new Error('Server returned invalid response. LinkedIn Connect may not be available.');
+    console.error('[LinkedIn] Invalid response content-type:', contentType, 'Status:', response.status);
+    // Try to get text for debugging
+    const text = await response.text().catch(() => 'Unable to read response');
+    console.error('[LinkedIn] Response body:', text.substring(0, 200));
+    throw new Error('LinkedIn Connect service returned an unexpected response. Please try again.');
   }
   return response.json();
 };
@@ -30,8 +39,8 @@ export const LinkedInConnect: React.FC<LinkedInConnectProps> = ({
     setIsLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Please log in to connect LinkedIn');
+      if (!session?.access_token) {
+        toast.error('Session expired. Please refresh the page and try again.');
         return;
       }
 
