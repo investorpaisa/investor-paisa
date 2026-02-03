@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +13,13 @@ import {
   BarChart3,
   Globe,
   Bitcoin,
-  IndianRupee
+  IndianRupee,
+  Newspaper
 } from "lucide-react";
 import { useMarketBatch, useCryptoQuote } from "@/hooks/useMarketData";
+import { getSupabaseUrl, getSupabaseAnonKey } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { TrendingStructuredFeed } from "@/components/feed/TrendingStructuredFeed";
 
 // Specific indices for each tab
 const INDIAN_INDICES = ["NIFTY50", "SENSEX", "BANKNIFTY", "NIFTYIT"];
@@ -136,15 +140,40 @@ export default function Markets() {
   const [activeTab, setActiveTab] = useState("overview");
 
   // Fetch batch quotes
-  const { data: indianQuotes, isLoading: indianLoading, refetch: refetchIndian } = useMarketBatch(
+  const { data: indianQuotes, isLoading: indianLoading, refetch: refetchIndian, error: indianError } = useMarketBatch(
     INDIAN_INDICES,
     activeTab === "overview" || activeTab === "indian"
   );
 
-  const { data: globalQuotes, isLoading: globalLoading, refetch: refetchGlobal } = useMarketBatch(
+  const { data: globalQuotes, isLoading: globalLoading, refetch: refetchGlobal, error: globalError } = useMarketBatch(
     GLOBAL_INDICES,
     activeTab === "overview" || activeTab === "global"
   );
+
+  // Trigger RSS fetch once on mount
+  useEffect(() => {
+    const fetchNews = async () => {
+      const sessionKey = 'markets_news_fetched';
+      const lastFetch = sessionStorage.getItem(sessionKey);
+      const now = Date.now();
+      
+      if (!lastFetch || (now - parseInt(lastFetch)) > 5 * 60 * 1000) {
+        try {
+          await fetch(`${getSupabaseUrl()}/functions/v1/fetch-google-rss`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${getSupabaseAnonKey()}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          sessionStorage.setItem(sessionKey, now.toString());
+        } catch (e) {
+          console.log('Markets RSS fetch triggered');
+        }
+      }
+    };
+    fetchNews();
+  }, []);
 
   // Compute gainers and losers for overview
   const { topGainers, topLosers } = useMemo(() => {
@@ -156,6 +185,8 @@ export default function Markets() {
       topLosers: sorted.filter(q => q.percentChange < 0).slice(0, 3),
     };
   }, [indianQuotes]);
+
+  const hasDataError = (indianError || globalError) && !indianQuotes?.length && !globalQuotes?.length;
 
   const handleStockClick = (symbol: string) => {
     navigate(`/markets/${symbol}`);
@@ -190,17 +221,17 @@ export default function Markets() {
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
               <BarChart3 className="h-5 w-5 text-primary" />
             </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold">Markets</h1>
-              <p className="text-xs text-muted-foreground">Real-time data</p>
-            </div>
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold">Markets</h1>
+            <p className="text-xs text-muted-foreground">Real-time data</p>
           </div>
-          {/* Only show refresh button if data failed to load */}
-          {(!indianQuotes || indianQuotes.length === 0) && (!globalQuotes || globalQuotes.length === 0) && !indianLoading && !globalLoading && (
-            <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-9 w-9">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
+        </div>
+        {/* Only show refresh button on error */}
+        {hasDataError && !indianLoading && !globalLoading && (
+          <Button variant="ghost" size="icon" onClick={handleRefresh} className="h-9 w-9">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
         </div>
 
         {/* Tabs */}
@@ -341,6 +372,14 @@ export default function Markets() {
                 </CardContent>
               </Card>
             </div>
+            {/* Market News */}
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Newspaper className="h-3.5 w-3.5" />
+                Market News
+              </h3>
+              <TrendingStructuredFeed filter="all" />
+            </div>
           </TabsContent>
 
           {/* Indian Markets Tab */}
@@ -374,6 +413,15 @@ export default function Markets() {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* India-specific news */}
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Newspaper className="h-3.5 w-3.5" />
+                India Market News
+              </h3>
+              <TrendingStructuredFeed filter="indian" />
+            </div>
           </TabsContent>
 
           {/* Global Markets Tab */}
@@ -408,6 +456,15 @@ export default function Markets() {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Global news */}
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Newspaper className="h-3.5 w-3.5" />
+                Global Market News
+              </h3>
+              <TrendingStructuredFeed filter="global" />
+            </div>
           </TabsContent>
 
           {/* Crypto Tab */}
@@ -426,6 +483,15 @@ export default function Markets() {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Crypto news */}
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Newspaper className="h-3.5 w-3.5" />
+                Crypto News
+              </h3>
+              <TrendingStructuredFeed filter="crypto" />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

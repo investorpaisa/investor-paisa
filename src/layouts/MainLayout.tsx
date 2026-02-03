@@ -102,7 +102,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {showSearchResults && (
                 <SearchTypeahead 
                   query={searchQuery} 
-                  onClose={() => setShowSearchResults(false)}
+                  onClose={() => {
+                    setShowSearchResults(false);
+                    setSearchQuery('');
+                  }}
                   onResultClick={() => {
                     setShowSearchResults(false);
                     setSearchQuery('');

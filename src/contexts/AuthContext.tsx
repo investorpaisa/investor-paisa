@@ -105,10 +105,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const checkOAuthCallback = async () => {
       const hash = window.location.hash;
       if (hash && hash.includes('access_token')) {
+        // Wait longer for Supabase to process the token from the URL BEFORE clearing
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Force session refresh to ensure tokens are captured
+        await supabase.auth.getSession();
+        
         // Clear the hash to prevent re-processing
         window.history.replaceState({}, '', window.location.pathname + window.location.search);
-        // Wait for Supabase to process the token from the URL
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
     };
 

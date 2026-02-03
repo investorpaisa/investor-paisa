@@ -592,7 +592,10 @@ const Profile = () => {
                 <CardContent className="p-3 sm:p-4 text-left">
                   <p className="text-sm line-clamp-2">{comment.body}</p>
                   <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                    <span>{comment.like_count || 0} likes</span>
+                    <span className="flex items-center gap-1">
+                      <ArrowUp className="h-3 w-3" />
+                      {comment.like_count || 0}
+                    </span>
                     <span>{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
                   </div>
                 </CardContent>

@@ -274,16 +274,17 @@ const PostDetail: React.FC = () => {
   }
 
   return (
-    <div className="container max-w-2xl mx-auto py-6 px-4">
+    <div className="container max-w-2xl mx-auto py-4 px-2 sm:py-6 sm:px-4">
       {/* Back button - left aligned below nav, in line with question widget */}
-      <div className="mb-4">
+      <div className="mb-3 flex justify-start">
         <Button
           variant="ghost"
+          size="sm"
           onClick={() => navigate(-1)}
-          className="gap-2 text-muted-foreground hover:text-foreground"
+          className="gap-1.5 text-muted-foreground hover:text-foreground h-8 px-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back
+          <span className="text-sm">Back</span>
         </Button>
       </div>
 
@@ -334,62 +335,64 @@ const PostDetail: React.FC = () => {
               <p className="text-foreground whitespace-pre-wrap leading-relaxed">{post.body}</p>
             )}
           </CardContent>
-          <CardFooter className="p-6 pt-0 border-t border-border/50 mt-4 pt-4">
+          <CardFooter className="p-3 sm:p-6 pt-0 border-t border-border/50 mt-4 pt-3 sm:pt-4">
+            {/* Mobile: equidistant CTAs using justify-between */}
             <div className="flex items-center justify-between w-full">
-              {/* Left: Action buttons */}
-              <div className="flex items-center gap-2">
-                {/* Upvote */}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`gap-1.5 ${isUpvoted ? 'text-primary' : ''}`}
-                  onClick={handleUpvote}
-                >
+              {/* Upvote */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`h-8 px-2 flex-1 max-w-[56px] ${isUpvoted ? 'text-primary' : 'text-muted-foreground'}`}
+                onClick={handleUpvote}
+              >
+                <div className="flex items-center gap-1">
                   <ArrowUp className="h-4 w-4" />
-                  <span>{(post as any).upvote_count || 0}</span>
-                </Button>
-                
-                {/* Downvote */}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`gap-1.5 ${isDownvoted ? 'text-destructive' : ''}`}
-                  onClick={handleDownvote}
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-                
-                {/* Comment */}
-                <Button variant="ghost" size="sm" className="gap-1.5">
+                  <span className="text-xs">{(post as any).upvote_count || 0}</span>
+                </div>
+              </Button>
+              
+              {/* Downvote */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`h-8 px-2 flex-1 max-w-[56px] ${isDownvoted ? 'text-destructive' : 'text-muted-foreground'}`}
+                onClick={handleDownvote}
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+              
+              {/* Comment */}
+              <Button variant="ghost" size="sm" className="h-8 px-2 flex-1 max-w-[56px] text-muted-foreground">
+                <div className="flex items-center gap-1">
                   <MessageSquare className="h-4 w-4" />
-                  <span>{answers?.length || 0}</span>
-                </Button>
-                
-                {/* Repost */}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`gap-1.5 ${isReposted ? 'text-primary' : ''}`}
-                  onClick={handleRepostClick}
-                >
-                  <Repeat className="h-4 w-4" />
-                </Button>
-                
-                {/* Save */}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={isBookmarked ? 'text-primary' : ''}
-                  onClick={handleSave}
-                >
-                  <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
-                </Button>
-              </div>
+                  <span className="text-xs">{answers?.length || 0}</span>
+                </div>
+              </Button>
+              
+              {/* Repost */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`h-8 px-2 flex-1 max-w-[56px] ${isReposted ? 'text-primary' : 'text-muted-foreground'}`}
+                onClick={handleRepostClick}
+              >
+                <Repeat className="h-4 w-4" />
+              </Button>
+              
+              {/* Save */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`h-8 px-2 flex-1 max-w-[56px] ${isBookmarked ? 'text-primary' : 'text-muted-foreground'}`}
+                onClick={handleSave}
+              >
+                <Bookmark className="h-4 w-4" fill={isBookmarked ? "currentColor" : "none"} />
+              </Button>
               
               {/* Right: 3-dot menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

@@ -1,12 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, Star, Newspaper, RefreshCw } from 'lucide-react';
+import { 
+  TrendingUp, Star, Newspaper, RefreshCw, ArrowUp, ArrowDown, 
+  MessageSquare, Repeat, Bookmark, MoreHorizontal, Share2, Flag, ExternalLink 
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useNavigate } from 'react-router-dom';
 import { getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
+import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 
 interface PromotedProfile {
   id: string;
@@ -27,6 +41,7 @@ interface NewsArticle {
   source: string;
   url: string;
   thumbnail_url: string | null;
+  image_url?: string | null;
   published_at: string;
   category: string;
   country?: string;
@@ -82,37 +97,241 @@ const PromotedProfileCard: React.FC<{ profiles: PromotedProfile[] }> = ({ profil
   );
 };
 
-// News Widget
-const NewsWidget: React.FC<{ article: NewsArticle }> = ({ article }) => (
-  <Card className="hover:border-primary/30 transition-colors cursor-pointer" 
-        onClick={() => window.open(article.url, '_blank')}>
-    <CardContent className="p-3">
-      <div className="flex gap-3">
-        {article.thumbnail_url && (
+// Enhanced News Widget with Action CTAs
+const NewsWidget: React.FC<{ 
+  article: NewsArticle;
+  onHide?: (id: string) => void;
+}> = ({ article, onHide }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const toggleBookmark = useToggleBookmark();
+  const { data: isBookmarked } = useIsBookmarked(article.id);
+  
+  const [localUpvotes, setLocalUpvotes] = useState(0);
+  const [isUpvoted, setIsUpvoted] = useState(false);
+  const [isDownvoted, setIsDownvoted] = useState(false);
+
+  const imageUrl = article.image_url || article.thumbnail_url;
+  const timeAgo = formatDistanceToNow(new Date(article.published_at), { addSuffix: true });
+
+  const handleUpvote = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    if (isUpvoted) {
+      setLocalUpvotes(prev => prev - 1);
+      setIsUpvoted(false);
+    } else {
+      setLocalUpvotes(prev => prev + 1);
+      setIsUpvoted(true);
+      if (isDownvoted) setIsDownvoted(false);
+    }
+  };
+
+  const handleDownvote = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    if (isDownvoted) {
+      setIsDownvoted(false);
+    } else {
+      setIsDownvoted(true);
+      if (isUpvoted) {
+        setLocalUpvotes(prev => prev - 1);
+        setIsUpvoted(false);
+      }
+    }
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    toggleBookmark.mutate({
+      entityId: article.id,
+      entityType: 'news_article',
+    });
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (navigator.share) {
+        await navigator.share({ url: article.url, title: article.title });
+      } else {
+        await navigator.clipboard.writeText(article.url);
+        toast.success('Link copied to clipboard');
+      }
+    } catch {
+      toast.error('Failed to share');
+    }
+  };
+
+  const handleReport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onHide) {
+      onHide(article.id);
+      toast.success('Content hidden');
+    }
+  };
+
+  const handleOpenLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.open(article.url, '_blank');
+  };
+
+  return (
+    <Card className="hover:border-primary/30 transition-colors overflow-hidden">
+      {/* Image - larger display */}
+      {imageUrl && (
+        <div 
+          className="relative w-full h-40 sm:h-48 cursor-pointer"
+          onClick={handleOpenLink}
+        >
           <img 
-            src={article.thumbnail_url} 
-            alt="" 
-            className="w-16 h-16 rounded-lg object-cover shrink-0"
+            src={imageUrl} 
+            alt={article.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
           />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Badge variant="secondary" className="text-[10px]">
-              {article.category}
+          <div className="absolute top-2 right-2">
+            <Badge variant="secondary" className="text-[10px] bg-background/80">
+              <ExternalLink className="h-2.5 w-2.5 mr-1" />
+              {article.source}
             </Badge>
-            {article.country && (
-              <Badge variant="outline" className="text-[10px]">
-                {article.country === 'india' ? '🇮🇳 India' : '🌐 Global'}
-              </Badge>
-            )}
           </div>
-          <h4 className="text-sm font-medium line-clamp-2">{article.title}</h4>
-          <p className="text-xs text-muted-foreground mt-1">{article.source}</p>
         </div>
-      </div>
-    </CardContent>
-  </Card>
-);
+      )}
+      
+      <CardContent className="p-3">
+        {/* Badges */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <Badge variant="secondary" className="text-[10px]">
+            {article.category}
+          </Badge>
+          {article.country && (
+            <Badge variant="outline" className="text-[10px]">
+              {article.country === 'india' ? '🇮🇳 India' : '🌐 Global'}
+            </Badge>
+          )}
+        </div>
+        
+        {/* Title */}
+        <h4 
+          className="text-sm font-medium line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+          onClick={handleOpenLink}
+        >
+          {article.title}
+        </h4>
+        
+        {/* Summary */}
+        {article.summary && (
+          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{article.summary}</p>
+        )}
+        
+        {/* Source and time */}
+        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+          {!imageUrl && <span>{article.source}</span>}
+          {!imageUrl && <span>•</span>}
+          <span>{timeAgo}</span>
+        </div>
+      </CardContent>
+
+      {/* Action CTAs - equidistant */}
+      <CardFooter className="p-3 pt-0 border-t border-border/50 mt-2 pt-2">
+        <div className="flex items-center justify-between w-full">
+          {/* Upvote */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`h-7 px-1.5 flex-1 max-w-[48px] ${isUpvoted ? 'text-primary' : 'text-muted-foreground'}`}
+            onClick={handleUpvote}
+          >
+            <div className="flex items-center gap-0.5">
+              <ArrowUp className="h-4 w-4" />
+              {localUpvotes > 0 && <span className="text-xs">{localUpvotes}</span>}
+            </div>
+          </Button>
+          
+          {/* Downvote */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`h-7 px-1.5 flex-1 max-w-[48px] ${isDownvoted ? 'text-destructive' : 'text-muted-foreground'}`}
+            onClick={handleDownvote}
+          >
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+          
+          {/* Comment (shows 0) */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground"
+            onClick={handleOpenLink}
+          >
+            <div className="flex items-center gap-0.5">
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="text-xs">0</span>
+            </div>
+          </Button>
+          
+          {/* Repost */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground"
+            onClick={handleShare}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+          </Button>
+          
+          {/* Save */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`h-7 px-1.5 flex-1 max-w-[48px] ${isBookmarked ? 'text-primary' : 'text-muted-foreground'}`}
+            onClick={handleSave}
+          >
+            <Bookmark className="h-3.5 w-3.5" fill={isBookmarked ? "currentColor" : "none"} />
+          </Button>
+
+          {/* 3-dot menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={handleShare}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenLink}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open in new tab
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleReport} className="text-destructive">
+                <Flag className="mr-2 h-4 w-4" />
+                Report & hide
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+};
 
 export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
   newsArticles: propArticles,
@@ -121,9 +340,14 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
 }) => {
   const [promotedProfiles, setPromotedProfiles] = useState<PromotedProfile[]>([]);
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>(propArticles || []);
+  const [hiddenArticles, setHiddenArticles] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(propLoading);
   const [loadingPromotions, setLoadingPromotions] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleHideArticle = (id: string) => {
+    setHiddenArticles(prev => new Set([...prev, id]));
+  };
 
   // Fetch news and promotions on mount
   useEffect(() => {
@@ -244,7 +468,9 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
         {[1, 2, 3, 4, 5, 6].map(i => (
           <Card key={i}>
             <CardContent className="p-4">
-              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-40 w-full mb-3" />
+              <Skeleton className="h-4 w-3/4 mb-2" />
+              <Skeleton className="h-3 w-full" />
             </CardContent>
           </Card>
         ))}
@@ -252,15 +478,22 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
     );
   }
 
+  // Filter out hidden articles
+  const visibleArticles = newsArticles.filter(a => !hiddenArticles.has(a.id));
+
   // Build structured feed: news + promotions interleaved
   const feedItems: React.ReactNode[] = [];
   let newsIndex = 0;
 
   const buildPattern = () => {
     // First batch of news (0-3)
-    for (let i = 0; i < 4 && newsIndex < newsArticles.length; i++) {
+    for (let i = 0; i < 4 && newsIndex < visibleArticles.length; i++) {
       feedItems.push(
-        <NewsWidget key={`news-${newsIndex}`} article={newsArticles[newsIndex]} />
+        <NewsWidget 
+          key={`news-${newsIndex}`} 
+          article={visibleArticles[newsIndex]} 
+          onHide={handleHideArticle}
+        />
       );
       newsIndex++;
     }
@@ -273,9 +506,13 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
     }
 
     // Remaining news
-    while (newsIndex < newsArticles.length) {
+    while (newsIndex < visibleArticles.length) {
       feedItems.push(
-        <NewsWidget key={`news-${newsIndex}`} article={newsArticles[newsIndex]} />
+        <NewsWidget 
+          key={`news-${newsIndex}`} 
+          article={visibleArticles[newsIndex]} 
+          onHide={handleHideArticle}
+        />
       );
       newsIndex++;
     }
