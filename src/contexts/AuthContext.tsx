@@ -111,8 +111,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    if (!supabase || initializingRef.current) {
-      if (!supabase) setIsLoading(false);
+    // Skip if already initializing, but DON'T skip if supabase is null
+    // The context provider will still render with null values
+    if (initializingRef.current) {
+      return;
+    }
+    
+    // Handle case where supabase client isn't available
+    if (!supabase) {
+      console.warn('Supabase client not available');
+      setIsLoading(false);
       return;
     }
 
