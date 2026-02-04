@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { Profile } from '@/types/database';
@@ -42,6 +42,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initializingRef = useRef(false);
+  const oauthProcessedRef = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string, userEmail?: string) => {
     if (!supabase) return null;
@@ -109,91 +111,139 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    if (!supabase) {
-      setIsLoading(false);
+    if (!supabase || initializingRef.current) {
+      if (!supabase) setIsLoading(false);
       return;
     }
 
-    let authChangeTimeout: ReturnType<typeof setTimeout> | null = null;
+    initializingRef.current = true;
     let isMounted = true;
 
-    // Check for OAuth callback in URL hash (for Google auth)
-    const checkOAuthCallback = async () => {
+    // Handle OAuth callback - detect tokens in hash and process them
+    const processOAuthCallback = async (): Promise<boolean> => {
       const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        // Wait longer for Supabase to process the token from the URL BEFORE clearing
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Force session refresh to ensure tokens are captured
-        await supabase.auth.getSession();
-        
-        // Clear the hash to prevent re-processing
-        window.history.replaceState({}, '', window.location.pathname + window.location.search);
+      
+      // Check if this is an OAuth callback
+      if (!hash || !hash.includes('access_token') || oauthProcessedRef.current) {
+        return false;
       }
+      
+      console.log('OAuth callback detected, processing tokens...');
+      oauthProcessedRef.current = true;
+      
+      // Parse the hash to extract tokens
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      
+      if (accessToken && refreshToken) {
+        try {
+          // Manually set the session with the tokens from the URL
+          const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (setSessionError) {
+            console.error('Failed to set session from OAuth tokens:', setSessionError);
+            return false;
+          }
+          
+          if (sessionData.session && isMounted) {
+            console.log('OAuth session established successfully');
+            setSession(sessionData.session);
+            setUser(sessionData.session.user);
+            
+            // Fetch profile
+            const profileData = await fetchProfile(
+              sessionData.session.user.id, 
+              sessionData.session.user.email ?? undefined
+            );
+            if (isMounted) setProfile(profileData);
+            
+            // Clear the hash from URL after successful processing
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            return true;
+          }
+        } catch (err) {
+          console.error('Error processing OAuth callback:', err);
+        }
+      }
+      
+      return false;
     };
 
-    // Get initial session
+    // Initialize session
     const initSession = async () => {
-      await checkOAuthCallback();
-      
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      if (!isMounted) return;
-      
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      
-      if (initialSession?.user) {
-        const profileData = await fetchProfile(initialSession.user.id, initialSession.user.email ?? undefined);
-        if (isMounted) setProfile(profileData);
+      try {
+        // First check for OAuth callback
+        const oauthHandled = await processOAuthCallback();
+        
+        if (oauthHandled) {
+          if (isMounted) setIsLoading(false);
+          return;
+        }
+        
+        // No OAuth callback - get existing session normally
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+        
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        
+        if (initialSession?.user) {
+          const profileData = await fetchProfile(initialSession.user.id, initialSession.user.email ?? undefined);
+          if (isMounted) setProfile(profileData);
+        }
+      } catch (error) {
+        console.error('Error initializing session:', error);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
-      
-      if (isMounted) setIsLoading(false);
     };
 
     initSession();
 
-    // Listen for auth changes with debouncing to prevent rapid state updates
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      // Debounce auth state changes to prevent flickering during token refresh
-      if (authChangeTimeout) clearTimeout(authChangeTimeout);
+      if (!isMounted) return;
       
-      authChangeTimeout = setTimeout(async () => {
-        if (!isMounted) return;
-        
-        // Only update state if there's an actual change
-        const sessionChanged = newSession?.access_token !== session?.access_token;
-        const userChanged = newSession?.user?.id !== user?.id;
-        
-        if (sessionChanged || userChanged || event === 'SIGNED_OUT') {
+      console.log('Auth state change:', event, newSession?.user?.email);
+      
+      // Handle specific events
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (newSession) {
           setSession(newSession);
-          setUser(newSession?.user ?? null);
-
-          if (newSession?.user) {
-            const profileData = await fetchProfile(newSession.user.id, newSession.user.email ?? undefined);
-            if (isMounted) setProfile(profileData);
-          } else {
-            setProfile(null);
-          }
+          setUser(newSession.user);
+          
+          const profileData = await fetchProfile(newSession.user.id, newSession.user.email ?? undefined);
+          if (isMounted) setProfile(profileData);
         }
-
-        if (isMounted) setIsLoading(false);
-      }, 100);
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      }
+      
+      if (isMounted) setIsLoading(false);
     });
 
     return () => {
       isMounted = false;
-      if (authChangeTimeout) clearTimeout(authChangeTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchProfile, session?.access_token, user?.id]);
+  }, [fetchProfile]);
 
   const signInWithGoogle = async () => {
     if (!supabase) throw new Error('Supabase not configured');
     
+    // Reset the OAuth processed flag before initiating new login
+    oauthProcessedRef.current = false;
+    
     // Use Lovable managed OAuth
     const { lovable } = await import('@/integrations/lovable');
     const result = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+      redirect_uri: window.location.origin + '/feed',
     });
     
     if (result.error) {
