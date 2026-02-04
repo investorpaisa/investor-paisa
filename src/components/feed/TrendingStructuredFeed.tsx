@@ -19,8 +19,10 @@ import { useNavigate } from 'react-router-dom';
 import { getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
+
 
 interface PromotedProfile {
   id: string;
@@ -97,6 +99,12 @@ const PromotedProfileCard: React.FC<{ profiles: PromotedProfile[] }> = ({ profil
   );
 };
 
+// Helper to validate image URL
+const isValidImageUrl = (url: string | null | undefined): url is string => {
+  if (!url || typeof url !== 'string') return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
 // Enhanced News Widget with Action CTAs
 const NewsWidget: React.FC<{ 
   article: NewsArticle;
@@ -105,20 +113,20 @@ const NewsWidget: React.FC<{
   const { user } = useAuth();
   const navigate = useNavigate();
   const toggleBookmark = useToggleBookmark();
-  // Don't use bookmark for news articles with non-UUID ids
+  
+  // Check if article ID is a valid UUID for database operations
   const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(article.id);
-  const { data: isBookmarked } = useIsBookmarked(isValidUuid ? article.id : undefined);
+  const { data: isBookmarked } = useIsBookmarked(isValidUuid ? article.id : undefined, 'news_article');
   
   const [localUpvotes, setLocalUpvotes] = useState(0);
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [isDownvoted, setIsDownvoted] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isReposting, setIsReposting] = useState(false);
 
   // Determine image URL - ensure it's a proper URL string
   const rawImageUrl = article.image_url || article.thumbnail_url;
-  const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' && (rawImageUrl.startsWith('http://') || rawImageUrl.startsWith('https://')) 
-    ? rawImageUrl 
-    : null;
+  const imageUrl = isValidImageUrl(rawImageUrl) ? rawImageUrl : null;
   const timeAgo = formatDistanceToNow(new Date(article.published_at), { addSuffix: true });
 
   const handleUpvote = (e: React.MouseEvent) => {
@@ -156,8 +164,51 @@ const NewsWidget: React.FC<{
 
   const handleComment = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Navigate to a news detail page instead of external URL
+    // Navigate to internal news detail page for commenting
     navigate(`/news/${encodeURIComponent(article.id)}`);
+  };
+
+  const handleRepost = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    
+    // For news articles, create a post with the news link and navigate to it
+    setIsReposting(true);
+    try {
+      // Create a new post with the news article as content
+      const { data: newPost, error } = await supabase
+        .from('posts')
+        .insert([{
+          author_id: user.id,
+          title: `Re: ${article.title}`,
+          body: article.summary || '',
+          link_url: article.url,
+          link_preview: {
+            title: article.title,
+            description: article.summary,
+            image: imageUrl,
+            url: article.url,
+          },
+          type: 'link_converted' as const,
+        }])
+        .select('id')
+        .single();
+      
+      if (error) throw error;
+      
+      toast.success('Shared with your opinion!');
+      if (newPost) {
+        navigate(`/post/${newPost.id}`);
+      }
+    } catch (err) {
+      console.error('Failed to repost:', err);
+      toast.error('Failed to share. Please try again.');
+    } finally {
+      setIsReposting(false);
+    }
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -166,12 +217,14 @@ const NewsWidget: React.FC<{
       navigate('/auth');
       return;
     }
+    
     // For non-UUID article IDs, use local state only
     if (!isValidUuid) {
       setIsSaved(!isSaved);
       toast.success(isSaved ? 'Removed from bookmarks' : 'Saved to bookmarks');
       return;
     }
+    
     toggleBookmark.mutate({
       entityId: article.id,
       entityType: 'news_article',
@@ -213,149 +266,152 @@ const NewsWidget: React.FC<{
 
   return (
     <Card className="hover:border-primary/30 transition-colors overflow-hidden">
-      {/* Image - larger display */}
-      {imageUrl && (
-        <div 
-          className="relative w-full h-40 sm:h-48 cursor-pointer"
-          onClick={handleOpenLink}
-        >
-          <img 
-            src={imageUrl} 
-            alt={article.title}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-          <div className="absolute top-2 right-2">
-            <Badge variant="secondary" className="text-[10px] bg-background/80">
-              <ExternalLink className="h-2.5 w-2.5 mr-1" />
-              {article.source}
-            </Badge>
+        {/* Image - larger display with proper validation */}
+        {imageUrl && (
+          <div 
+            className="relative w-full h-40 sm:h-48 cursor-pointer bg-muted"
+            onClick={handleOpenLink}
+          >
+            <img 
+              src={imageUrl} 
+              alt={article.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                // Hide broken image
+                (e.target as HTMLImageElement).parentElement!.style.display = 'none';
+              }}
+            />
+            <div className="absolute top-2 right-2">
+              <Badge variant="secondary" className="text-[10px] bg-background/80">
+                <ExternalLink className="h-2.5 w-2.5 mr-1" />
+                {article.source}
+              </Badge>
+            </div>
           </div>
-        </div>
-      )}
-      
-      <CardContent className="p-3">
-        {/* Badges */}
-        <div className="flex items-center gap-1.5 mb-2">
-          <Badge variant="secondary" className="text-[10px]">
-            {article.category}
-          </Badge>
-          {article.country && (
-            <Badge variant="outline" className="text-[10px]">
-              {article.country === 'india' ? '🇮🇳 India' : '🌐 Global'}
-            </Badge>
-          )}
-        </div>
-        
-        {/* Title */}
-        <h4 
-          className="text-sm font-medium line-clamp-2 cursor-pointer hover:text-primary transition-colors"
-          onClick={handleOpenLink}
-        >
-          {article.title}
-        </h4>
-        
-        {/* Summary */}
-        {article.summary && (
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{article.summary}</p>
         )}
         
-        {/* Source and time */}
-        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-          {!imageUrl && <span>{article.source}</span>}
-          {!imageUrl && <span>•</span>}
-          <span>{timeAgo}</span>
-        </div>
-      </CardContent>
+        <CardContent className="p-3">
+          {/* Badges */}
+          <div className="flex items-center gap-1.5 mb-2">
+            <Badge variant="secondary" className="text-[10px]">
+              {article.category}
+            </Badge>
+            {article.country && (
+              <Badge variant="outline" className="text-[10px]">
+                {article.country === 'india' ? '🇮🇳 India' : '🌐 Global'}
+              </Badge>
+            )}
+          </div>
+          
+          {/* Title */}
+          <h4 
+            className="text-sm font-medium line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+            onClick={handleOpenLink}
+          >
+            {article.title}
+          </h4>
+          
+          {/* Summary */}
+          {article.summary && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{article.summary}</p>
+          )}
+          
+          {/* Source and time */}
+          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+            {!imageUrl && <span>{article.source}</span>}
+            {!imageUrl && <span>•</span>}
+            <span>{timeAgo}</span>
+          </div>
+        </CardContent>
 
-      {/* Action CTAs - equidistant */}
-      <CardFooter className="p-3 pt-0 border-t border-border/50 mt-2 pt-2">
-        <div className="flex items-center justify-between w-full">
-          {/* Upvote */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`h-7 px-1.5 flex-1 max-w-[48px] ${isUpvoted ? 'text-primary' : 'text-muted-foreground'}`}
-            onClick={handleUpvote}
-          >
-            <div className="flex items-center gap-0.5">
-              <ArrowUp className="h-4 w-4" />
-              {localUpvotes > 0 && <span className="text-xs">{localUpvotes}</span>}
-            </div>
-          </Button>
-          
-          {/* Downvote */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`h-7 px-1.5 flex-1 max-w-[48px] ${isDownvoted ? 'text-destructive' : 'text-muted-foreground'}`}
-            onClick={handleDownvote}
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-          
-          {/* Comment */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground"
-            onClick={handleComment}
-          >
-            <div className="flex items-center gap-0.5">
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span className="text-xs">0</span>
-            </div>
-          </Button>
-          
-          {/* Repost */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground"
-            onClick={handleShare}
-          >
-            <Repeat className="h-3.5 w-3.5" />
-          </Button>
-          
-          {/* Save */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={`h-7 px-1.5 flex-1 max-w-[48px] ${(isBookmarked || isSaved) ? 'text-primary' : 'text-muted-foreground'}`}
-            onClick={handleSave}
-          >
-            <Bookmark className="h-3.5 w-3.5" fill={(isBookmarked || isSaved) ? "currentColor" : "none"} />
-          </Button>
+        {/* Action CTAs - equidistant */}
+        <CardFooter className="p-3 pt-0 border-t border-border/50 mt-2 pt-2">
+          <div className="flex items-center justify-between w-full">
+            {/* Upvote */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${isUpvoted ? 'text-primary' : 'text-muted-foreground'}`}
+              onClick={handleUpvote}
+            >
+              <div className="flex items-center gap-0.5">
+                <ArrowUp className="h-4 w-4" />
+                {localUpvotes > 0 && <span className="text-xs">{localUpvotes}</span>}
+              </div>
+            </Button>
+            
+            {/* Downvote */}
+            <Button 
+              variant="ghost" 
+              size="sm"
+              disabled={isReposting}
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${isDownvoted ? 'text-destructive' : 'text-muted-foreground'}`}
+              onClick={handleDownvote}
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+            
+            {/* Comment */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground"
+              onClick={handleComment}
+            >
+              <div className="flex items-center gap-0.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="text-xs">0</span>
+              </div>
+            </Button>
+            
+            {/* Repost - opens modal with opinion */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`h-7 px-1.5 flex-1 max-w-[48px] text-muted-foreground ${isReposting ? 'animate-pulse' : ''}`}
+              onClick={handleRepost}
+            >
+              <Repeat className="h-3.5 w-3.5" />
+            </Button>
+            
+            {/* Save */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`h-7 px-1.5 flex-1 max-w-[48px] ${(isBookmarked || isSaved) ? 'text-primary' : 'text-muted-foreground'}`}
+              onClick={handleSave}
+            >
+              <Bookmark className="h-3.5 w-3.5" fill={(isBookmarked || isSaved) ? "currentColor" : "none"} />
+            </Button>
 
-          {/* 3-dot menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={handleShare}>
-                <Share2 className="mr-2 h-4 w-4" />
-                Share
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleOpenLink}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open in new tab
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleReport} className="text-destructive">
-                <Flag className="mr-2 h-4 w-4" />
-                Report & hide
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardFooter>
-    </Card>
-  );
+            {/* 3-dot menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={handleShare}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenLink}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Open in new tab
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleReport} className="text-destructive">
+                  <Flag className="mr-2 h-4 w-4" />
+                  Report & hide
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardFooter>
+      </Card>
+    );
 };
 
 export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
@@ -503,66 +559,92 @@ export const TrendingStructuredFeed: React.FC<TrendingStructuredFeedProps> = ({
     );
   }
 
-  // Filter out hidden articles
-  const visibleArticles = newsArticles.filter(a => !hiddenArticles.has(a.id));
-
-  // Build structured feed: news + promotions interleaved
-  const feedItems: React.ReactNode[] = [];
-  let newsIndex = 0;
-
-  const buildPattern = () => {
-    // First batch of news (0-3)
-    for (let i = 0; i < 4 && newsIndex < visibleArticles.length; i++) {
-      feedItems.push(
-        <NewsWidget 
-          key={`news-${newsIndex}`} 
-          article={visibleArticles[newsIndex]} 
-          onHide={handleHideArticle}
-        />
-      );
-      newsIndex++;
-    }
-
-    // Promoted profile
-    if (promotedProfiles.length > 0) {
-      feedItems.push(
-        <PromotedProfileCard key="promoted" profiles={promotedProfiles} />
-      );
-    }
-
-    // Remaining news
-    while (newsIndex < visibleArticles.length) {
-      feedItems.push(
-        <NewsWidget 
-          key={`news-${newsIndex}`} 
-          article={visibleArticles[newsIndex]} 
-          onHide={handleHideArticle}
-        />
-      );
-      newsIndex++;
-    }
-  };
-
-  buildPattern();
-
-  if (feedItems.length === 0) {
+  if (error) {
     return (
       <Card>
-        <CardContent className="p-8 text-center">
-          <Newspaper className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground mb-4">No trending content available</p>
-          {error && (
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Try Again
-            </Button>
-          )}
+        <CardContent className="p-6 text-center">
+          <Newspaper className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="mt-3">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Try Again
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
-  return <div className="space-y-3">{feedItems}</div>;
-};
+  const visibleArticles = newsArticles.filter(a => !hiddenArticles.has(a.id));
 
-export default TrendingStructuredFeed;
+  if (visibleArticles.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <Newspaper className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No trending news at the moment</p>
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="mt-3">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Refresh
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Build the feed with interleaved content: 4 news, promoted profile, 4 news, etc.
+  const feedItems: React.ReactNode[] = [];
+  let newsIndex = 0;
+  let profileIndex = 0;
+
+  while (newsIndex < visibleArticles.length) {
+    // Add 4 news items
+    for (let i = 0; i < 4 && newsIndex < visibleArticles.length; i++) {
+      const article = visibleArticles[newsIndex];
+      feedItems.push(
+        <NewsWidget 
+          key={article.id} 
+          article={article}
+          onHide={handleHideArticle}
+        />
+      );
+      newsIndex++;
+    }
+
+    // Add a promoted profile after every 4 news items
+    if (profileIndex < promotedProfiles.length && newsIndex < visibleArticles.length) {
+      feedItems.push(
+        <PromotedProfileCard 
+          key={`promoted-${profileIndex}`}
+          profiles={[promotedProfiles[profileIndex]]} 
+        />
+      );
+      profileIndex++;
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Refresh header */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          <span className="text-xs font-medium text-muted-foreground">
+            {visibleArticles.length} trending stories
+          </span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={handleRefresh} 
+          disabled={isLoading}
+          className="h-7 text-xs"
+        >
+          <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {feedItems}
+    </div>
+  );
+};

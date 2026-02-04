@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Edit, Mail, MessageCircle, Calendar, Briefcase, 
   MapPin, Award, TrendingUp, Target, AlertCircle, UserPlus, UserMinus, CheckCircle2, MoreHorizontal, LogOut, Bookmark, ExternalLink,
-  ArrowUp, ArrowDown, Repeat
+  ArrowUp, ArrowDown, Repeat, Newspaper
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -26,12 +26,15 @@ import { useToggleFollow, useIsFollowing } from '@/hooks/useFollows';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useUserTier } from '@/hooks/useUserTier';
+import { FollowersModal } from '@/components/profile/FollowersModal';
 
 const Profile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, profile: currentUserProfile } = useAuth();
   const { tier, tierLabel } = useUserTier();
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [showFollowingModal, setShowFollowingModal] = useState(false);
   
   // Determine if we're viewing own profile or someone else's
   const isOwnProfile = !id || id === user?.id || id === currentUserProfile?.username;
@@ -133,7 +136,7 @@ const Profile = () => {
     enabled: !!profile?.id,
   });
 
-  // Fetch user's bookmarks (saved items) with post details
+  // Fetch user's bookmarks (saved items) with post AND news details
   const { data: userBookmarks, isLoading: bookmarksLoading } = useQuery({
     queryKey: ['user-bookmarks', profile?.id],
     queryFn: async () => {
@@ -144,23 +147,37 @@ const Profile = () => {
         .select('id, entity_id, entity_type, created_at')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (error) throw error;
       if (!bookmarks) return [];
 
       // Fetch post details for post bookmarks
       const postIds = bookmarks.filter(b => b.entity_type === 'post').map(b => b.entity_id);
-      const { data: posts } = await supabase
-        .from('posts')
-        .select('id, title, body, type, like_count, comment_count, created_at')
-        .in('id', postIds);
+      let postsMap = new Map();
+      if (postIds.length > 0) {
+        const { data: posts } = await supabase
+          .from('posts')
+          .select('id, title, body, type, like_count, comment_count, created_at')
+          .in('id', postIds);
+        postsMap = new Map(posts?.map(p => [p.id, p]) || []);
+      }
 
-      const postsMap = new Map(posts?.map(p => [p.id, p]) || []);
+      // Fetch news article details for news bookmarks
+      const newsIds = bookmarks.filter(b => b.entity_type === 'news_article').map(b => b.entity_id);
+      let newsMap = new Map();
+      if (newsIds.length > 0) {
+        const { data: news } = await supabase
+          .from('news_articles')
+          .select('id, title, summary, source, category, url, published_at, thumbnail_url, image_url')
+          .in('id', newsIds);
+        newsMap = new Map(news?.map(n => [n.id, n]) || []);
+      }
       
       return bookmarks.map(b => ({
         ...b,
         post: b.entity_type === 'post' ? postsMap.get(b.entity_id) : null,
+        news: b.entity_type === 'news_article' ? newsMap.get(b.entity_id) : null,
       }));
     },
     enabled: !!profile?.id && isOwnProfile,
@@ -256,6 +273,7 @@ const Profile = () => {
   };
 
   return (
+    <>
     <div className="max-w-2xl mx-auto py-4 px-2 sm:px-4 space-y-4">
       {/* Profile Summary Widget */}
       <Card className="border border-border/50">
@@ -378,14 +396,20 @@ const Profile = () => {
                 </div>
                 
                 <div className="flex gap-4 pt-1">
-                  <div>
+                  <button 
+                    onClick={() => isOwnProfile && setShowFollowersModal(true)}
+                    className={`text-left ${isOwnProfile ? 'hover:bg-secondary/50 rounded-lg p-1 -m-1 transition-colors cursor-pointer' : ''}`}
+                  >
                     <span className="font-bold text-sm">{profile.followers_count || 0}</span>
                     <span className="text-muted-foreground text-xs ml-1">Followers</span>
-                  </div>
-                  <div>
+                  </button>
+                  <button 
+                    onClick={() => isOwnProfile && setShowFollowingModal(true)}
+                    className={`text-left ${isOwnProfile ? 'hover:bg-secondary/50 rounded-lg p-1 -m-1 transition-colors cursor-pointer' : ''}`}
+                  >
                     <span className="font-bold text-sm">{profile.following_count || 0}</span>
                     <span className="text-muted-foreground text-xs ml-1">Following</span>
-                  </div>
+                  </button>
                   <div>
                     <span className="font-bold text-sm">{profile.posts_count || 0}</span>
                     <span className="text-muted-foreground text-xs ml-1">Posts</span>
@@ -636,6 +660,8 @@ const Profile = () => {
                   onClick={() => {
                     if (bookmark.entity_type === 'post') {
                       navigate(`/post/${bookmark.entity_id}`);
+                    } else if (bookmark.entity_type === 'news_article') {
+                      navigate(`/news/${bookmark.entity_id}`);
                     }
                   }}
                 >
@@ -665,13 +691,26 @@ const Profile = () => {
                           <span>{formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}</span>
                         </div>
                       </>
+                    ) : bookmark.news ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Newspaper className="h-3 w-3 text-primary" />
+                          <Badge variant="outline" className="text-[10px]">{bookmark.news.category}</Badge>
+                        </div>
+                        <h4 className="font-medium text-sm line-clamp-1">{bookmark.news.title}</h4>
+                        {bookmark.news.summary && (
+                          <p className="text-muted-foreground text-xs line-clamp-2 mt-1">{bookmark.news.summary}</p>
+                        )}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                          <span>{bookmark.news.source}</span>
+                          <span>{formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}</span>
+                        </div>
+                      </>
                     ) : (
                       <>
                         <div className="flex items-center gap-2">
                           <Bookmark className="h-4 w-4 text-primary" />
-                          <Badge variant="outline" className="text-[10px] capitalize">
-                            {bookmark.entity_type}
-                          </Badge>
+                          <Badge variant="outline" className="text-[10px] capitalize">{bookmark.entity_type}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
                           Saved {formatDistanceToNow(new Date(bookmark.created_at), { addSuffix: true })}
@@ -740,6 +779,27 @@ const Profile = () => {
         </Card>
       )}
     </div>
+
+      {/* Followers Modal */}
+      {isOwnProfile && profile && (
+        <>
+          <FollowersModal
+            isOpen={showFollowersModal}
+            onClose={() => setShowFollowersModal(false)}
+            userId={profile.id}
+            type="followers"
+            username={profile.username || 'user'}
+          />
+          <FollowersModal
+            isOpen={showFollowingModal}
+            onClose={() => setShowFollowingModal(false)}
+            userId={profile.id}
+            type="following"
+            username={profile.username || 'user'}
+          />
+        </>
+      )}
+    </>
   );
 };
 
