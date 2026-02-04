@@ -119,11 +119,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initializingRef.current = true;
     let isMounted = true;
 
-    // Handle OAuth callback - detect tokens in hash and process them
+    // Handle OAuth callback - detect tokens in hash and process them BEFORE anything else
     const processOAuthCallback = async (): Promise<boolean> => {
       const hash = window.location.hash;
       
-      // Check if this is an OAuth callback
+      // Check if this is an OAuth callback with tokens
       if (!hash || !hash.includes('access_token') || oauthProcessedRef.current) {
         return false;
       }
@@ -138,6 +138,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (accessToken && refreshToken) {
         try {
+          // Clear the hash FIRST to prevent re-processing
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', cleanUrl);
+          
           // Manually set the session with the tokens from the URL
           const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -150,7 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
           
           if (sessionData.session && isMounted) {
-            console.log('OAuth session established successfully');
+            console.log('OAuth session established successfully for:', sessionData.session.user.email);
             setSession(sessionData.session);
             setUser(sessionData.session.user);
             
@@ -161,8 +165,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             );
             if (isMounted) setProfile(profileData);
             
-            // Clear the hash from URL after successful processing
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
             return true;
           }
         } catch (err) {

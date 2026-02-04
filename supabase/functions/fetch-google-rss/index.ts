@@ -32,6 +32,27 @@ interface RSSItem {
   pubDate: string;
   source?: string;
   description?: string;
+  imageUrl?: string;
+}
+
+// Extract image URL from various formats in RSS
+function extractImageUrl(itemXml: string, description: string): string | null {
+  // Try to find media:content or enclosure
+  const mediaMatch = /<media:content[^>]*url="([^"]+)"/i.exec(itemXml);
+  if (mediaMatch) return mediaMatch[1];
+  
+  const enclosureMatch = /<enclosure[^>]*url="([^"]+)"[^>]*type="image/i.exec(itemXml);
+  if (enclosureMatch) return enclosureMatch[1];
+  
+  // Try to extract from media:thumbnail
+  const thumbnailMatch = /<media:thumbnail[^>]*url="([^"]+)"/i.exec(itemXml);
+  if (thumbnailMatch) return thumbnailMatch[1];
+  
+  // Try to extract first image from description HTML
+  const imgMatch = /<img[^>]+src=["']([^"']+)["']/i.exec(description);
+  if (imgMatch && imgMatch[1].startsWith('http')) return imgMatch[1];
+  
+  return null;
 }
 
 // Parse RSS XML to extract items
@@ -57,13 +78,27 @@ function parseRSS(xml: string): RSSItem[] {
     const source = sourceMatch?.[1] || '';
     const description = descMatch?.[1] || descMatch?.[2] || '';
     
+    // Extract image URL
+    const imageUrl = extractImageUrl(itemXml, description);
+    
+    // Clean HTML from description
+    const cleanDescription = description
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .trim();
+    
     if (title && link) {
       items.push({
         title: title.trim(),
         link: link.trim(),
         pubDate: pubDate.trim(),
         source: source.trim(),
-        description: description.trim().substring(0, 500),
+        description: cleanDescription.substring(0, 500) || undefined,
+        imageUrl: imageUrl || undefined,
       });
     }
   }
@@ -80,6 +115,19 @@ function generateId(url: string): string {
     hash = hash & hash;
   }
   return `rss_${Math.abs(hash).toString(36)}`;
+}
+
+// Generate placeholder image based on category
+function getCategoryPlaceholder(category: string): string {
+  // Use Unsplash source for category-relevant stock photos
+  const categoryKeywords: Record<string, string> = {
+    'stocks': 'stock-market,trading',
+    'economy': 'business,economy',
+    'crypto': 'cryptocurrency,bitcoin',
+    'commodities': 'gold,oil',
+  };
+  const keywords = categoryKeywords[category] || 'finance,business';
+  return `https://source.unsplash.com/800x450/?${keywords}`;
 }
 
 serve(async (req) => {
@@ -126,7 +174,8 @@ serve(async (req) => {
           summary: item.description || null,
           source: item.source || 'Google News',
           url: item.link,
-          image_url: null, // RSS doesn't typically include images
+          image_url: item.imageUrl || getCategoryPlaceholder(feed.category),
+          thumbnail_url: item.imageUrl || getCategoryPlaceholder(feed.category),
           category: feed.category,
           country: feed.country,
           published_at: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
@@ -156,7 +205,7 @@ serve(async (req) => {
         .from('news_articles')
         .upsert(recentArticles, { 
           onConflict: 'id',
-          ignoreDuplicates: true 
+          ignoreDuplicates: false // Update existing articles with new image URLs
         });
 
       if (upsertError) {
