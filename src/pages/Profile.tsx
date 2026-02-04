@@ -31,7 +31,7 @@ import { FollowersModal } from '@/components/profile/FollowersModal';
 const Profile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, profile: currentUserProfile } = useAuth();
+  const { user, profile: currentUserProfile, isLoading: authLoading } = useAuth();
   const { tier, tierLabel } = useUserTier();
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [showFollowingModal, setShowFollowingModal] = useState(false);
@@ -54,24 +54,29 @@ const Profile = () => {
 
   // Fetch profile data
   const { data: profile, isLoading, error } = useQuery({
-    queryKey: ['profile', profileId],
+    queryKey: ['profile', profileId, isOwnProfile],
     queryFn: async () => {
       if (!profileId) return null;
 
-      let query = supabase.from('profiles_public').select('*');
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
       
-      if (isUUID) {
-        query = query.eq('id', profileId);
+      // For own profile, use the profiles table directly (has more fields)
+      if (isOwnProfile) {
+        let query = supabase.from('profiles').select('*');
+        query = isUUID ? query.eq('id', profileId) : query.eq('username', profileId);
+        const { data, error } = await query.single();
+        if (error) throw error;
+        return data;
       } else {
-        query = query.eq('username', profileId);
+        // For other profiles, use profiles_public view
+        let query = supabase.from('profiles_public').select('*');
+        query = isUUID ? query.eq('id', profileId) : query.eq('username', profileId);
+        const { data, error } = await query.single();
+        if (error) throw error;
+        return data;
       }
-
-      const { data, error } = await query.single();
-      if (error) throw error;
-      return data;
     },
-    enabled: !!profileId,
+    enabled: !!profileId && !authLoading, // Wait for auth to complete
   });
 
   // Fetch user's posts (questions + opinions)
@@ -215,8 +220,8 @@ const Profile = () => {
     }
   };
 
-  // Loading state
-  if (isLoading) {
+  // Loading state - include auth loading
+  if (isLoading || authLoading) {
     return (
       <div className="max-w-2xl mx-auto py-4 px-2 sm:px-4 space-y-4">
         <Card className="border border-border/50">

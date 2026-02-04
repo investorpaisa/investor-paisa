@@ -39,13 +39,22 @@ const PageLoader = () => (
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
+  const [timedOut, setTimedOut] = React.useState(false);
 
-  if (isLoading) {
+  // Add timeout to prevent infinite loading - 3 seconds max
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading) setTimedOut(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  // Show loader only for first 3 seconds, then proceed with auth check
+  if (isLoading && !timedOut) {
     return <PageLoader />;
   }
 
   if (!user) {
-    // Save the current location they were trying to go to
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
