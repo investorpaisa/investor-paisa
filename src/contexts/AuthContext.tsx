@@ -111,8 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    // Skip if already initializing, but DON'T skip if supabase is null
-    // The context provider will still render with null values
+    // Skip if already initializing
     if (initializingRef.current) {
       return;
     }
@@ -136,7 +135,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return false;
       }
       
-      console.log('OAuth callback detected, processing tokens...');
+      console.log('[Auth] OAuth callback detected, processing tokens...');
       oauthProcessedRef.current = true;
       
       // Parse the hash to extract tokens
@@ -146,23 +145,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (accessToken && refreshToken) {
         try {
-          // Clear the hash FIRST to prevent re-processing
-          const cleanUrl = window.location.pathname + window.location.search;
-          window.history.replaceState(null, '', cleanUrl);
-          
           // Manually set the session with the tokens from the URL
           const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
           
+          // Clear the hash AFTER setting session to prevent issues
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', cleanUrl);
+          
           if (setSessionError) {
-            console.error('Failed to set session from OAuth tokens:', setSessionError);
+            console.error('[Auth] Failed to set session from OAuth tokens:', setSessionError);
             return false;
           }
           
           if (sessionData.session && isMounted) {
-            console.log('OAuth session established successfully for:', sessionData.session.user.email);
+            console.log('[Auth] OAuth session established successfully for:', sessionData.session.user.email);
             setSession(sessionData.session);
             setUser(sessionData.session.user);
             
@@ -176,7 +175,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             return true;
           }
         } catch (err) {
-          console.error('Error processing OAuth callback:', err);
+          console.error('[Auth] Error processing OAuth callback:', err);
+          // Clear hash even on error
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', cleanUrl);
         }
       }
       
@@ -206,19 +208,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (isMounted) setProfile(profileData);
         }
       } catch (error) {
-        console.error('Error initializing session:', error);
+        console.error('[Auth] Error initializing session:', error);
       } finally {
         if (isMounted) setIsLoading(false);
       }
     };
 
-    initSession();
-
-    // Listen for auth changes
+    // Set up auth state change listener FIRST, then init session
+    // This ensures we catch any auth state changes during initialization
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!isMounted) return;
       
-      console.log('Auth state change:', event, newSession?.user?.email);
+      console.log('[Auth] Auth state change:', event, newSession?.user?.email);
       
       // Handle specific events
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -237,6 +238,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (isMounted) setIsLoading(false);
     });
+
+    // Now init session
+    initSession();
 
     return () => {
       isMounted = false;
