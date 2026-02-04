@@ -168,47 +168,15 @@ const NewsWidget: React.FC<{
     navigate(`/news/${encodeURIComponent(article.id)}`);
   };
 
-  const handleRepost = async (e: React.MouseEvent) => {
+  const handleRepost = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
       navigate('/auth');
       return;
     }
     
-    // For news articles, create a post with the news link and navigate to it
-    setIsReposting(true);
-    try {
-      // Create a new post with the news article as content
-      const { data: newPost, error } = await supabase
-        .from('posts')
-        .insert([{
-          author_id: user.id,
-          title: `Re: ${article.title}`,
-          body: article.summary || '',
-          link_url: article.url,
-          link_preview: {
-            title: article.title,
-            description: article.summary,
-            image: imageUrl,
-            url: article.url,
-          },
-          type: 'link_converted' as const,
-        }])
-        .select('id')
-        .single();
-      
-      if (error) throw error;
-      
-      toast.success('Shared with your opinion!');
-      if (newPost) {
-        navigate(`/post/${newPost.id}`);
-      }
-    } catch (err) {
-      console.error('Failed to repost:', err);
-      toast.error('Failed to share. Please try again.');
-    } finally {
-      setIsReposting(false);
-    }
+    // Navigate to news detail page which has the repost modal
+    navigate(`/news/${encodeURIComponent(article.id)}`);
   };
 
   const handleSave = (e: React.MouseEvent) => {
