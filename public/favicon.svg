@@ -1,12 +1,11 @@
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Continuous line iP monogram - teal primary color -->
-  <path 
-    d="M9 26V12M9 12C9 9 11 7 14 7H18C21 7 23 9 23 12C23 15 21 17 18 17H14M14 17V26M14 17C14 20 16 22 19 22H23"
-    stroke="#0D9488"
-    stroke-width="3"
+<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- InvestorPaisa icon - primary teal on light backgrounds -->
+  <path
+    d="M12 32V14M12 14C12 10.686 14.686 8 18 8H22C25.314 8 28 10.686 28 14V14C28 17.314 25.314 20 22 20H18M18 20V32M18 20C18 23.314 20.686 26 24 26H28"
+    stroke="#00B7A5"
+    stroke-width="3.5"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <!-- Dot on i -->
-  <circle cx="9" cy="5" r="2" fill="#0D9488"/>
+  <circle cx="12" cy="6" r="2.5" fill="#00B7A5" />
 </svg>
