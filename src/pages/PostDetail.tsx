@@ -8,11 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, ArrowLeft, TrendingUp, AlertCircle, Repeat, MoreHorizontal, Flag, EyeOff, Link } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, ArrowLeft, TrendingUp, AlertCircle, Repeat, MoreHorizontal, Flag, EyeOff, Link, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useToggleReaction, useUserReaction } from '@/hooks/useReactions';
 import { useToggleBookmark, useIsBookmarked } from '@/hooks/useBookmarks';
 import { useIsReposted, useCreateRepostWithOpinion, useRemoveRepost } from '@/hooks/useReposts';
+import { useDeletePost } from '@/hooks/useDeletePost';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { RepostWithOpinionModal } from '@/components/posts/RepostWithOpinionModal';
+import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { InlineAnswerInput } from '@/components/answer/InlineAnswerInput';
@@ -158,8 +160,10 @@ const PostDetail: React.FC = () => {
   const { data: isReposted } = useIsReposted(postId || '');
   const createRepostWithOpinion = useCreateRepostWithOpinion();
   const removeRepost = useRemoveRepost();
+  const deletePost = useDeletePost();
   
   const [showRepostModal, setShowRepostModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   const isUpvoted = userReactions?.some(r => r.reaction_type === 'upvote') || false;
   const isDownvoted = userReactions?.some(r => r.reaction_type === 'downvote') || false;
@@ -227,6 +231,20 @@ const PostDetail: React.FC = () => {
       toast.success('Link copied to clipboard');
     } catch {
       toast.error('Failed to copy link');
+    }
+  };
+
+  // Fix #8: Handle delete post
+  const handleDeletePost = async () => {
+    if (!postId) return;
+    
+    try {
+      await deletePost.mutateAsync(postId);
+      setShowDeleteModal(false);
+      // Navigate back after delete
+      navigate('/feed');
+    } catch (error) {
+      console.error('Delete failed:', error);
     }
   };
 
@@ -317,7 +335,8 @@ const PostDetail: React.FC = () => {
                   {post.author?.is_verified && (
                     <TrendingUp className="h-4 w-4 text-primary" />
                   )}
-                  <Badge variant="outline" className="text-xs capitalize">
+                  {/* Fix #4: Consistent badge styling (teal/cyan) */}
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5">
                     {post.type}
                   </Badge>
                 </div>
@@ -412,6 +431,19 @@ const PostDetail: React.FC = () => {
                     <Link className="mr-2 h-4 w-4" />
                     Copy link
                   </DropdownMenuItem>
+                  {/* Fix #8: Delete option for own posts */}
+                  {post.author_id === user?.id && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => setShowDeleteModal(true)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   {/* Only show report/hide for other users' posts */}
                   {post.author_id !== user?.id && (
                     <>
@@ -431,6 +463,14 @@ const PostDetail: React.FC = () => {
             </div>
           </CardFooter>
         </Card>
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmModal
+          open={showDeleteModal}
+          onOpenChange={setShowDeleteModal}
+          onConfirm={handleDeletePost}
+          isLoading={deletePost.isPending}
+        />
 
         {/* Repost Modal */}
         <RepostWithOpinionModal
