@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Logo } from '@/components/ui/logo';
 
 type AuthStep = 'email' | 'otp' | 'success';
 
@@ -311,9 +312,7 @@ const Auth: React.FC = () => {
         {/* Logo */}
         <motion.div className="text-center mb-8" variants={itemVariants}>
           <div className="flex items-center justify-center mb-6">
-            <span className="text-2xl font-bold font-heading">
-              Investor<span className="text-primary">Paisa</span>
-            </span>
+            <Logo variant="light" size="lg" />
           </div>
           <h1 className="text-2xl font-bold mb-2 font-heading">
             {step === 'success' ? 'Welcome!' : 'Sign in'}

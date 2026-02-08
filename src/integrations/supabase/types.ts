@@ -2256,6 +2256,7 @@ export type Database = {
         | "poll"
         | "link_converted"
         | "insight"
+        | "repost"
       reaction_type: "like" | "upvote" | "downvote" | "save"
       session_status: "scheduled" | "live" | "ended" | "cancelled"
       trust_event_type:
@@ -2425,6 +2426,7 @@ export const Constants = {
         "poll",
         "link_converted",
         "insight",
+        "repost",
       ],
       reaction_type: ["like", "upvote", "downvote", "save"],
       session_status: ["scheduled", "live", "ended", "cancelled"],

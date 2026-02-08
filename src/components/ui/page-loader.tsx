@@ -1,16 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { Logo } from '@/components/ui/logo';
 
 export const PageLoader: React.FC = () => {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
         <motion.div
-          className="text-2xl font-bold font-heading"
           animate={{ scale: [1, 1.05, 1], opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          Investor<span className="text-primary">Paisa</span>
+          <Logo variant="light" size="lg" />
         </motion.div>
         <div className="flex items-center gap-1">
           {[0, 1, 2].map((i) => (

@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import MobileNav from './MobileNav';
 import { PremiumButton } from '../ui/premium/button';
 import { Search } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 const Header = () => {
   return (
     <header className="py-3 px-4 border-b border-black/5 backdrop-blur-sm bg-white/90 sticky top-0 z-10">
       <div className="flex justify-between items-center max-w-6xl mx-auto w-full">
-        <Link to="/" className="flex items-center space-x-2">
-          <span className="font-bold text-xl">Investor<span className="text-gold">Paisa</span></span>
+        <Link to="/" className="flex items-center">
+          <Logo variant="light" size="md" />
         </Link>
         
         {/* Search Bar */}
@@ -19,7 +20,7 @@ const Header = () => {
           </div>
           <input 
             type="text" 
-            placeholder="Search Investor Paisa"
+            placeholder="Search InvestorPaisa"
             className="w-full h-9 rounded-md bg-black/5 border border-black/10 px-10 text-sm placeholder:text-black/40 focus:outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/30"
           />
         </div>
