@@ -116,28 +116,66 @@ export const useCreateConversation = () => {
         throw new Error('Message cannot contain sensitive information like passwords, PINs, or API keys');
       }
 
-      // Use SECURITY DEFINER RPC to safely create/get conversation
-      // This bypasses RLS issues when adding the other user as participant
-      const { data: conversationId, error: rpcError } = await supabase
-        .rpc('get_or_create_dm_conversation', {
-          p_user_a: user.id,
-          p_user_b: targetUserId,
-        });
+      // Check if conversation already exists between these users
+      const { data: existingConv } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
 
-      if (rpcError) {
-        console.error('RPC error:', rpcError);
-        throw new Error('Failed to create conversation: ' + rpcError.message);
+      if (existingConv && existingConv.length > 0) {
+        const convIds = existingConv.map(c => c.conversation_id);
+        
+        const { data: targetConv } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', targetUserId)
+          .in('conversation_id', convIds)
+          .limit(1);
+
+        if (targetConv && targetConv.length > 0) {
+          // Conversation exists, just send message
+          const { data: message, error: msgError } = await supabase
+            .from('messages')
+            .insert({
+              conversation_id: targetConv[0].conversation_id,
+              sender_id: user.id,
+              body: initialMessage,
+            })
+            .select()
+            .single();
+
+          if (msgError) throw msgError;
+          return { conversationId: targetConv[0].conversation_id, message };
+        }
       }
 
-      if (!conversationId) {
-        throw new Error('Failed to create conversation');
-      }
+      // Create new conversation
+      const { data: newConv, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          is_group: false,
+          type: 'direct',
+        })
+        .select()
+        .single();
+
+      if (convError) throw convError;
+
+      // Add participants
+      const { error: participantError } = await supabase
+        .from('conversation_participants')
+        .insert([
+          { conversation_id: newConv.id, user_id: user.id },
+          { conversation_id: newConv.id, user_id: targetUserId },
+        ]);
+
+      if (participantError) throw participantError;
 
       // Send initial message
       const { data: message, error: msgError } = await supabase
         .from('messages')
         .insert({
-          conversation_id: conversationId,
+          conversation_id: newConv.id,
           sender_id: user.id,
           body: initialMessage,
         })
@@ -146,7 +184,7 @@ export const useCreateConversation = () => {
 
       if (msgError) throw msgError;
 
-      return { conversationId, message };
+      return { conversationId: newConv.id, message };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

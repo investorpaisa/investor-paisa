@@ -2221,10 +2221,6 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
-      get_or_create_dm_conversation: {
-        Args: { p_user_a: string; p_user_b: string }
-        Returns: string
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["user_role"]
@@ -2256,7 +2252,6 @@ export type Database = {
         | "poll"
         | "link_converted"
         | "insight"
-        | "repost"
       reaction_type: "like" | "upvote" | "downvote" | "save"
       session_status: "scheduled" | "live" | "ended" | "cancelled"
       trust_event_type:
@@ -2426,7 +2421,6 @@ export const Constants = {
         "poll",
         "link_converted",
         "insight",
-        "repost",
       ],
       reaction_type: ["like", "upvote", "downvote", "save"],
       session_status: ["scheduled", "live", "ended", "cancelled"],

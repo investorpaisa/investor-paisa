@@ -254,11 +254,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Reset the OAuth processed flag before initiating new login
     oauthProcessedRef.current = false;
     
-    // Use Lovable managed OAuth - Fix #9: Use origin only, not origin + path
-    // The OAuth provider will redirect back to origin, then we handle routing
+    // Use Lovable managed OAuth
     const { lovable } = await import('@/integrations/lovable');
     const result = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+      redirect_uri: window.location.origin + '/feed',
     });
     
     if (result.error) {

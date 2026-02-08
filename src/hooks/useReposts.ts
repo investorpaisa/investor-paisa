@@ -129,7 +129,7 @@ export const useToggleRepost = () => {
   });
 };
 
-// Create repost with opinion - Fix #2: Create a NEW posts entry for reposts
+// Create repost with opinion
 export const useCreateRepostWithOpinion = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -138,7 +138,7 @@ export const useCreateRepostWithOpinion = () => {
     mutationFn: async ({ postId, opinion }: RepostParams): Promise<void> => {
       if (!user?.id) throw new Error('Must be logged in');
 
-      // Check if repost already exists in reposts table (unique constraint)
+      // Check if repost already exists
       const { data: existing } = await (supabase as any)
         .from('reposts')
         .select('id')
@@ -155,39 +155,7 @@ export const useCreateRepostWithOpinion = () => {
 
         if (error) throw error;
       } else {
-        // Get original post details for the repost
-        const { data: originalPost, error: fetchError } = await supabase
-          .from('posts')
-          .select('title, body, type, community_id')
-          .eq('id', postId)
-          .single();
-
-        if (fetchError) throw fetchError;
-
-        // Create a NEW post entry with type 'repost' so it appears in profile
-        // This ensures independent engagement counters
-        const { error: postError } = await supabase
-          .from('posts')
-          .insert({
-            author_id: user.id,
-            type: 'repost' as any,
-            title: opinion || null, // Use opinion as the repost title
-            body: originalPost?.body || null,
-            link_url: null,
-            link_preview: { original_post_id: postId }, // Store reference to original
-            upvote_count: 0,
-            downvote_count: 0,
-            comment_count: 0,
-            share_count: 0,
-            save_count: 0,
-          });
-
-        if (postError) {
-          console.error('Failed to create repost post entry:', postError);
-          // Continue with reposts table insert even if posts insert fails
-        }
-
-        // Also create entry in reposts table for unique constraint
+        // Create new repost with opinion
         const { error } = await (supabase as any)
           .from('reposts')
           .insert({
@@ -204,9 +172,6 @@ export const useCreateRepostWithOpinion = () => {
       queryClient.invalidateQueries({ queryKey: ['repost', postId] });
       queryClient.invalidateQueries({ queryKey: ['repost-count', postId] });
       queryClient.invalidateQueries({ queryKey: ['feed'] });
-      // Fix #2: Also invalidate user-posts so reposts appear in profile
-      queryClient.invalidateQueries({ queryKey: ['user-posts'] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Reposted successfully');
     },
     onError: (error: Error) => {

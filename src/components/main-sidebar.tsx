@@ -6,9 +6,9 @@ import {
   Globe, 
   Plus,
   Users, 
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
-import { Logo } from '@/components/ui/logo';
 
 const navigation = [
   { name: 'Home', href: '/home', icon: Home },
@@ -34,7 +34,15 @@ export const MainSidebar = () => {
           className="flex items-center space-x-3"
           whileHover={{ scale: 1.05 }}
         >
-          <Logo variant="dark" size="md" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold to-gold/80 flex items-center justify-center">
+            <Sparkles className="w-6 h-6 text-black" />
+          </div>
+          <div>
+            <h1 className="text-xl font-heading font-bold text-white">
+              Investor<span className="text-gold">Paisa</span>
+            </h1>
+            <p className="text-xs text-white/60">Financial Community</p>
+          </div>
         </motion.div>
       </div>
 

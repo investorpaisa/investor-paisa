@@ -1,384 +1,387 @@
 
-# InvestorPaisa Stability & Bug Fix Plan
+# InvestorPaisa Production Fixes - Comprehensive Plan
 
 ## Executive Summary
-This plan addresses 9 critical issues across authentication, messaging, data synchronization, UI consistency, and content management. Each fix includes Root Cause Analysis (RCA), backend changes, frontend fixes, and validation criteria.
+
+This plan addresses 10 distinct issues spanning authentication, UI consistency, data integration, and database cleanup. Based on thorough code exploration, I've identified root causes and specific file changes needed.
 
 ---
 
-## Issue 1: Message Sending Fails (RLS Violation)
+## Issue 1: Google Sign-in Landing on Logged-Out Feed
 
-### Root Cause Analysis
-The RLS policy on the `conversations` table currently only allows INSERT for authenticated users with a simple check (`auth.uid() IS NOT NULL`). However, the `conversation_participants` table has a policy that only allows users to manage their OWN participations (`auth.uid() = user_id`). This creates a race condition:
+### Root Cause
+The `AuthContext.tsx` correctly handles OAuth callback via `checkOAuthCallback()`, but there's a timing issue. When Google OAuth redirects back with tokens in the URL hash, the `checkOAuthCallback` function clears the hash too early (after only 100ms) before the Supabase client can extract and set the session.
 
-1. User A creates a conversation (allowed)
-2. User A tries to add User B as a participant (BLOCKED - User A's `auth.uid()` != User B's `user_id`)
+Additionally, the `lovable.auth.signInWithOAuth` function in `src/integrations/lovable/index.ts` needs to ensure session is set properly.
 
-The current flow in `useSendMessage.ts` attempts to insert participants for both users, but RLS blocks the second insert.
+### Solution
 
-### Backend Fix
-Create a SECURITY DEFINER function to safely create conversations with both participants:
+**File: `src/contexts/AuthContext.tsx`**
+1. Increase the delay after hash detection to allow Supabase to process tokens
+2. Add explicit session refresh after OAuth callback detection
+3. Force re-fetch of session if hash contained tokens
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_or_create_dm_conversation(
-  p_user_a uuid,
-  p_user_b uuid
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_conversation_id uuid;
-BEGIN
-  -- Check for existing conversation
-  SELECT cp1.conversation_id INTO v_conversation_id
-  FROM conversation_participants cp1
-  JOIN conversation_participants cp2 ON cp1.conversation_id = cp2.conversation_id
-  JOIN conversations c ON c.id = cp1.conversation_id
-  WHERE cp1.user_id = p_user_a 
-    AND cp2.user_id = p_user_b
-    AND c.is_group = false
-  LIMIT 1;
-
-  IF v_conversation_id IS NOT NULL THEN
-    RETURN v_conversation_id;
-  END IF;
-
-  -- Create new conversation
-  INSERT INTO conversations (is_group, type)
-  VALUES (false, 'direct')
-  RETURNING id INTO v_conversation_id;
-
-  -- Add both participants
-  INSERT INTO conversation_participants (conversation_id, user_id)
-  VALUES 
-    (v_conversation_id, p_user_a),
-    (v_conversation_id, p_user_b);
-
-  RETURN v_conversation_id;
-END;
-$$;
+```
+Technical Changes:
+- Line 105-113: Enhance checkOAuthCallback to wait longer (500ms) and then force getSession
+- Add: After clearing hash, call supabase.auth.getSession() to ensure session is loaded
+- Add: If session exists after callback, fetch profile immediately
 ```
 
-### Frontend Fix
-Update `useSendMessage.ts` to use the new RPC function instead of direct inserts.
+---
 
-### Validation
-- User A can message User B (first message creates conversation)
-- User B can reply to User A (reuses same conversation)
-- No duplicate conversations created
+## Issue 2: Trending News Cards Missing Action CTAs and Images
+
+### Current State
+The `NewsWidget` component in `TrendingStructuredFeed.tsx` only has basic display (title, category, source) and opens external link on click. It's missing:
+- Upvote/Downvote CTAs
+- Comment count
+- Repost functionality
+- Save (bookmark) functionality
+- Report spam option
+- Source images
+
+### Solution
+
+**File: `src/components/feed/TrendingStructuredFeed.tsx`**
+
+Enhance `NewsWidget` to include:
+1. Thumbnail/image display (larger and more prominent)
+2. Action bar with: Upvote, Downvote, Comment (0), Repost, Save
+3. 3-dot menu with: Share, Report spam (which hides the card)
+4. When report/hide is clicked, push remaining cards up
+
+```text
+NewsWidget Layout:
++----------------------------------------+
+| [Image - larger]                       |
+| [Category Badge] [Country Badge]       |
+| [Title - 2 line clamp]                 |
+| [Summary - 2 line clamp]               |
+| [Source] • [Time]                      |
+| [Upvote] [Down] [Comment] [Repost] [Save] [...] |
++----------------------------------------+
+```
+
+Add state management:
+- Local state for hidden articles
+- Optimistic UI for vote/save actions
+- Report modal integration
 
 ---
 
-## Issue 2: Repost Not Appearing in Profile
+## Issue 3: Edit Profile "Recent Activity" Still Shows "Likes"
 
-### Root Cause Analysis
-Current repost logic in `useReposts.ts` only inserts into the `reposts` table - it doesn't create a new `posts` entry. The Profile page queries `posts` table filtered by `author_id`, so reposts never appear.
+### Current State
+Looking at `src/pages/Profile.tsx` line 595, the Comments tab still shows:
+```typescript
+<span>{comment.like_count || 0} likes</span>
+```
 
-The expected behavior (per requirements) is that a repost should create a NEW post entry with:
-- `type: 'repost'`
-- `original_post_id: [original post ID]`
-- `author_id: current_user`
-- Independent engagement counters (upvotes=0, etc.)
+### Solution
 
-### Backend Fix
-The `posts` table already has `original_post_id` column. No schema change needed.
-
-### Frontend Fix
-Update `useCreateRepostWithOpinion` in `useReposts.ts` to:
-1. Create a new `posts` entry with `type: 'repost'` and `original_post_id`
-2. Also create the `reposts` table entry for the unique constraint
-3. Invalidate both feed and profile queries
-
-### Validation
-- Repost appears in user's Profile > Posts tab
-- Engagement counts are independent (upvoting repost doesn't affect original)
-- Original post counters remain unchanged
-
----
-
-## Issue 3: Upvote Count Desync Across Pages
-
-### Root Cause Analysis
-The `useToggleReaction` mutation in `useReactions.ts` only invalidates these query keys:
-- `['reaction', entityId]`
-- `['reactions', entityId]`
-- `['posts']`
-- `['post', entityId]`
-
-Missing invalidations:
-- `['feed']` (used by Feed.tsx infinite query)
-- `['user-posts', profileId]` (used by Profile.tsx)
-
-### Frontend Fix
-Update `useToggleReaction` to invalidate all relevant queries:
+**File: `src/pages/Profile.tsx`**
+- Line 595: Change `{comment.like_count || 0} likes` to show upvote icon with count
+- Use same pattern as Posts tab (ArrowUp icon + upvote_count)
 
 ```typescript
-onSuccess: (result, variables) => {
-  queryClient.invalidateQueries({ queryKey: ['reaction', variables.entityId] });
-  queryClient.invalidateQueries({ queryKey: ['reactions', variables.entityId] });
-  queryClient.invalidateQueries({ queryKey: ['posts'] });
-  queryClient.invalidateQueries({ queryKey: ['post', variables.entityId] });
-  queryClient.invalidateQueries({ queryKey: ['feed'] }); // ADD
-  queryClient.invalidateQueries({ queryKey: ['user-posts'] }); // ADD (broad invalidation)
+// Before
+<span>{comment.like_count || 0} likes</span>
+
+// After
+<span className="flex items-center gap-1">
+  <ArrowUp className="h-3 w-3" />
+  {comment.like_count || 0}
+</span>
+```
+
+---
+
+## Issue 4: Individual Content Page (PostDetail) Distorted on Mobile
+
+### Current State
+Looking at the screenshots:
+- Back button is centered above content instead of left-aligned
+- Title appears directly below nav without proper spacing
+- CTAs are not equidistant on mobile
+
+### Solution
+
+**File: `src/pages/PostDetail.tsx`**
+1. Fix Back button alignment - left-aligned, inline with content start
+2. Ensure proper mobile padding (px-2 for mobile, px-4 for desktop)
+3. Make action CTAs equidistant using `justify-between` on mobile
+4. Ensure all content is within the card widget properly
+
+```
+Layout Fix:
++------------------------------------------+
+| InvestorPaisa        [Search] [Messages] |
++------------------------------------------+
+| <- Back                                  |
+| +--------------------------------------+ |
+| | [Avatar] Name    [Badge]  [...]      | |
+| | Title                                | |
+| | Body text                            | |
+| | [Up] [Down] [Comment] [Repost] [Save]| |
+| +--------------------------------------+ |
+```
+
+Key CSS changes:
+- Back button: `self-start` or `text-left` alignment
+- Footer actions: `flex items-center justify-between w-full` for mobile
+
+---
+
+## Issue 5: Remove Hidden Posts for User 'prodmandeep@gmail.com'
+
+### Current State
+Database query shows:
+```
+user_id: b32ab9c1-497a-45d6-80fe-3369b9c55f36
+hidden_user_id: b32ab9c1-497a-45d6-80fe-3369b9c55f36
+```
+
+The user has hidden their own user ID, which means their own posts are hidden from themselves.
+
+### Solution
+
+**Database Change Required:**
+Run delete query to remove the self-hidden record:
+```sql
+DELETE FROM hidden_users 
+WHERE user_id = 'b32ab9c1-497a-45d6-80fe-3369b9c55f36' 
+AND hidden_user_id = 'b32ab9c1-497a-45d6-80fe-3369b9c55f36';
+```
+
+This should be a one-time database fix via migration.
+
+---
+
+## Issue 6: Indian Indices Data Not Loading
+
+### Current State
+The `Markets.tsx` page uses symbols `NIFTY50`, `SENSEX`, `BANKNIFTY`, `NIFTYIT` but these aren't recognized by TwelveData API. TwelveData requires proper exchange symbols.
+
+### Solution
+
+**File: `src/services/market/marketService.ts`** or **`supabase/functions/market-data/index.ts`**
+
+Add symbol mapping for Indian indices:
+```typescript
+const INDIAN_SYMBOL_MAPPING: Record<string, string> = {
+  'NIFTY50': 'NIFTY 50',    // or use ^NSEI for Yahoo Finance
+  'SENSEX': 'SENSEX',        // or use ^BSESN
+  'BANKNIFTY': 'NIFTY BANK',
+  'NIFTYIT': 'NIFTY IT',
 };
 ```
 
-### Validation
-- Upvote on post detail page reflects immediately on Feed
-- Upvote on Feed reflects on Profile
-- Counts stay consistent on page refresh
+Or use alternative symbols that TwelveData supports:
+- For TwelveData: `NIFTY 50`, `SENSEX` (with proper exchange specification)
+- Add exchange parameter: `symbol=NIFTY 50&exchange=NSE`
+
+**Alternative approach:** Use a different data source for Indian indices (like NSE official data or a free Indian market API).
 
 ---
 
-## Issue 4: Tag Color Inconsistency (Question/Opinion/News)
+## Issue 7: Markets Page Empty with Trending News
 
-### Root Cause Analysis
-Multiple components define their own Badge styling for post types:
-- `Feed.tsx` line 369: `bg-primary/10 text-primary border-primary/30`
-- `PostCard.tsx` line 164-165: `bg-primary/10 text-primary border-primary/30`
-- `PostDetail.tsx` line 320: `variant="outline"` (no color override)
+### Current State
+The Markets page doesn't display trending news. The `Markets.tsx` component only shows market data but no news integration.
 
-PostDetail uses the default outline variant which has different styling.
+### Solution
 
-### Frontend Fix
-Create a shared utility or apply the consistent class across all files:
+**File: `src/pages/Markets.tsx`**
+
+Add trending news section similar to Feed's Trending tab:
+1. Fetch news using `news-trending` edge function with filters
+2. Display news widgets below the market data
+3. Filter by category: stocks (for Overview/Indian), crypto (for Crypto tab), global
 
 ```typescript
-// Standard post type badge styling (Teal/Cyan)
-className="bg-primary/10 text-primary border-primary/30 text-[10px] capitalize h-5 px-1.5"
+// Add to Markets.tsx
+const { data: trendingNews } = useQuery({
+  queryKey: ['markets-news', activeTab],
+  queryFn: async () => {
+    const type = activeTab === 'indian' ? 'india' : 
+                 activeTab === 'crypto' ? 'crypto' : 
+                 activeTab === 'global' ? 'global' : 'all';
+    const response = await fetch(
+      `${getSupabaseUrl()}/functions/v1/news-trending?type=${type}&limit=10`,
+      { headers: { 'Authorization': `Bearer ${getSupabaseAnonKey()}` } }
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.articles || [];
+  },
+});
 ```
 
-Update:
-- `PostDetail.tsx` line 320
-
-### Validation
-- Tag color identical on Feed, Profile, and Post Detail pages
-- All use the teal/cyan primary color scheme
-
 ---
 
-## Issue 5: Secondary Nav Overlapping Top Nav
+## Issue 8: Search Focus Not Clearing on Click Outside
 
-### Root Cause Analysis
-Current z-index hierarchy:
-- Top Nav (MainLayout): `z-40`
-- Mobile Top Bar: `z-40`
-- Feed Tab Bar: `z-30` with `sticky top-12`
+### Current State
+In `MainLayout.tsx`, the search input shows results but when clicking outside:
+- The results dropdown closes (via SearchTypeahead's click outside handler)
+- But the search query remains and X button stays visible
 
-The issue is that `top-12` (48px) doesn't account for the exact top nav height on all viewports. Additionally, on scroll, the backdrop blur can cause visual overlap.
+### Solution
 
-### Frontend Fix
-Update `Feed.tsx` tab bar:
-- Increase top offset to match nav height exactly
-- Use CSS variable or consistent calculation
+**File: `src/layouts/MainLayout.tsx`**
 
-```tsx
-// Line 718 in Feed.tsx
-<div className="sticky top-[48px] z-30 bg-background/95 backdrop-blur-sm pt-1 pb-3 -mx-2 px-2 sm:-mx-4 sm:px-4">
-```
-
-For mobile, adjust to `top-12` (48px matches MobileTopBar height of h-12).
-
-### Validation
-- Both navs visible without overlap on scroll
-- Consistent on mobile and desktop
-- Tab bar doesn't cover any content
-
----
-
-## Issue 6: News Cards Not Rendering Images
-
-### Root Cause Analysis
-Examining the database data shows image URLs like:
-`https://source.unsplash.com/800x450/?business,economy`
-
-The `isValidImageUrl` helper in `TrendingStructuredFeed.tsx` (lines 103-106) correctly validates these URLs. However, examining the screenshot shows raw HTML/anchor tags in the description area, suggesting the RSS parsing might be returning malformed data.
-
-The RSS fetcher (`fetch-google-rss/index.ts`) has proper image extraction logic, but the image URLs may be dynamic Unsplash URLs that require specific loading.
-
-### Backend Fix
-Update `fetch-google-rss/index.ts` to:
-1. Better extract actual article images from media tags
-2. Use more reliable placeholder images (static, not dynamic Unsplash)
-
-### Frontend Fix
-Ensure `TrendingStructuredFeed.tsx` properly handles:
-1. Add `crossOrigin="anonymous"` to img tags for external images
-2. Improve error handling to show placeholder instead of hiding
-
-### Validation
-- Images render for news cards
-- Graceful fallback for broken images
-- No layout breaks
-
----
-
-## Issue 7: Comments Engagement Inconsistency
-
-### Root Cause Analysis
-Current comment actions use `like_count` field. Per requirements, comments should have:
-- Upvote/Downvote (matching posts)
-- GIF support
-- No repost/bookmark
-
-The `comments` table has `like_count` but not separate `upvote_count`/`downvote_count`. However, the `reactions` table already supports `entity_type: 'comment'` with reaction types including upvote/downvote.
-
-### Frontend Fix
-Update comment rendering (in `PostDetail.tsx` and wherever answers are displayed) to:
-1. Show ↑↓ buttons instead of like button
-2. Use `useToggleReaction` with `entityType: 'comment'`
-3. Add GIF picker option
-
-### Validation
-- Comments show upvote/downvote icons
-- Reactions work correctly
-- No repost/bookmark on comments
-
----
-
-## Issue 8: Delete Flow Missing/Inconsistent
-
-### Root Cause Analysis
-The 3-dot menu on posts shows Report and Hide options but NOT a Delete option for the content owner. The `PostDetail.tsx` menu (lines 415-428) only shows Report/Hide for OTHER users' posts - no delete for own posts.
-
-### Frontend Fix
-
-**For Posts:**
-Update `PostDetail.tsx`, `PostCard.tsx`, and `Feed.tsx` to add Delete option in 3-dot menu when `post.author_id === user?.id`:
-
-```tsx
-{post.author_id === user?.id && (
-  <DropdownMenuItem 
-    onClick={handleDelete}
-    className="text-destructive"
-  >
-    <Trash2 className="mr-2 h-4 w-4" />
-    Delete
-  </DropdownMenuItem>
+When SearchTypeahead's `onClose` is called, also clear the search query:
+```typescript
+{showSearchResults && (
+  <SearchTypeahead 
+    query={searchQuery} 
+    onClose={() => {
+      setShowSearchResults(false);
+      setSearchQuery('');  // Also clear the query
+    }}
+    onResultClick={() => {
+      setShowSearchResults(false);
+      setSearchQuery('');
+    }}
+  />
 )}
 ```
 
-**For Comments:**
-Add inline delete icon (or long-press on mobile) when `comment.author_id === user?.id`.
+---
 
-**Confirmation Modal:**
-Create a reusable `DeleteConfirmModal` component with:
-- Title: "Delete this?"
-- CTAs: Delete (destructive), Cancel
+## Issue 9: News Cards Should Appear in Profile (Posts/Saved)
 
-**Navigation After Delete:**
-- Post: Navigate back to source page (history.back or /feed)
-- Comment: Stay on same page, remove inline
+### Clarification Needed
+This requires treating news articles as saveable/interactable entities. Currently:
+- News articles are external links
+- Bookmarks table only tracks `post` entity types
 
-### Validation
-- Delete appears for own content only
-- Confirmation modal shows
-- Soft delete applied (deleted_at set)
-- Proper navigation after delete
+### Solution
+
+Two approaches:
+
+**Approach A (Simpler):** When a user saves a news article, create a special bookmark entry with `entity_type: 'news_article'` and store the news article ID
+
+**Approach B (More complex):** Create internal "news post" entries when users interact with external news
+
+For now, implement Approach A:
+1. Add ability to bookmark news articles in `TrendingStructuredFeed.tsx`
+2. Update Profile's Saved tab to also fetch news bookmarks
+3. Display news articles in Saved tab with appropriate widget
 
 ---
 
-## Issue 9: Google Sign-In Still Failing
+## Issue 10: Feed.tsx Using Wrong URL Pattern
 
-### Root Cause Analysis
-The current OAuth flow in `AuthContext.tsx` processes tokens correctly but the redirect may be losing the session. Key issues:
-
-1. `redirect_uri` is set to `/feed` which may not match configured callback URLs
-2. The `oauthProcessedRef` flag prevents re-processing but may fire too early
-3. Profile creation race condition during OAuth callback
-
-### Frontend Fix
-
-1. Update `signInWithGoogle` to use origin without path:
+### Current State
+Line 579 in `Feed.tsx`:
 ```typescript
-redirect_uri: window.location.origin, // Not window.location.origin + '/feed'
+`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/news-trending?type=all&limit=20`
 ```
 
-2. Ensure `processOAuthCallback` runs before any redirect check:
+This uses `import.meta.env.VITE_SUPABASE_URL` directly instead of `getSupabaseUrl()` which has the fallback.
+
+### Solution
+
+**File: `src/pages/Feed.tsx`**
+Replace with:
 ```typescript
-// Check hash on any page, not just specific routes
-const hash = window.location.hash;
-if (hash && hash.includes('access_token')) {
-  // Process immediately
-}
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/integrations/supabase/client';
+// ...
+const response = await fetch(
+  `${getSupabaseUrl()}/functions/v1/news-trending?type=all&limit=20`,
+  { headers: { 'Authorization': `Bearer ${getSupabaseAnonKey()}` } }
+);
 ```
-
-3. Add explicit session check after setSession:
-```typescript
-const { data: sessionCheck } = await supabase.auth.getSession();
-if (sessionCheck.session) {
-  // Session confirmed - safe to proceed
-}
-```
-
-### Validation
-- Google login lands user in authenticated experience
-- Session persists on refresh
-- Profile created/loaded correctly
-- No redirect back to logged-out state
 
 ---
 
-## Implementation Order (Strict Sequence)
+## Implementation Order
 
-| Order | Issue | Files to Modify |
-|-------|-------|-----------------|
-| 1 | Google Auth | `AuthContext.tsx` |
-| 2 | Message RLS | Migration SQL, `useSendMessage.ts` |
-| 3 | Repost Profile | `useReposts.ts` |
-| 4 | Upvote Sync | `useReactions.ts` |
-| 5 | Tag Colors | `PostDetail.tsx` |
-| 6 | Nav Z-Index | `Feed.tsx` |
-| 7 | News Images | `fetch-google-rss/index.ts`, `TrendingStructuredFeed.tsx` |
-| 8 | Comment Actions | `PostDetail.tsx`, `NewsDetail.tsx` |
-| 9 | Delete Flow | `PostCard.tsx`, `PostDetail.tsx`, `Feed.tsx` (+ new modal) |
-
----
-
-## Technical Implementation Details
-
-### Database Migration Required
-
-```sql
--- Function for conversation creation
-CREATE OR REPLACE FUNCTION public.get_or_create_dm_conversation(...)
-  RETURNS uuid
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  ...
+```text
++------------------------------------------------------------------------+
+|  EXECUTION ORDER                                                        |
++------------------------------------------------------------------------+
+|  1. Database Fix: Remove self-hidden user record                        |
+|     - One-time migration to fix prodmandeep's hidden posts              |
+|                                                                         |
+|  2. Auth Fix: Google OAuth session handling                             |
+|     - Update AuthContext.tsx timing for OAuth callback                  |
+|                                                                         |
+|  3. Search Focus Fix                                                   |
+|     - Update MainLayout.tsx to clear query on close                     |
+|                                                                         |
+|  4. Profile.tsx: Fix "likes" label                                     |
+|     - Change to upvote pattern                                          |
+|                                                                         |
+|  5. PostDetail.tsx: Mobile layout fixes                                |
+|     - Back button alignment, equidistant CTAs                           |
+|                                                                         |
+|  6. Feed.tsx: Fix URL pattern                                          |
+|     - Use getSupabaseUrl() instead of import.meta.env                   |
+|                                                                         |
+|  7. TrendingStructuredFeed.tsx: Add action CTAs to news                |
+|     - Upvote, downvote, comment, repost, save, report                   |
+|                                                                         |
+|  8. Markets.tsx: Add trending news section                             |
+|     - Integrate news fetching with category filters                     |
+|                                                                         |
+|  9. Market Data: Fix Indian indices                                    |
+|     - Add proper symbol mapping for NSE indices                         |
++------------------------------------------------------------------------+
 ```
 
-### Files to Modify
+---
 
-1. **`src/contexts/AuthContext.tsx`** - OAuth redirect fix
-2. **`src/hooks/useSendMessage.ts`** - Use RPC for conversation creation
-3. **`src/hooks/useReposts.ts`** - Create posts entry on repost
-4. **`src/hooks/useReactions.ts`** - Broader query invalidation
-5. **`src/pages/PostDetail.tsx`** - Badge styling, delete option, comment actions
-6. **`src/components/posts/PostCard.tsx`** - Delete option
-7. **`src/pages/Feed.tsx`** - Tab bar positioning, delete option
-8. **`src/components/feed/TrendingStructuredFeed.tsx`** - Image handling
-9. **`supabase/functions/fetch-google-rss/index.ts`** - Better image extraction
-10. **New: `src/components/ui/delete-confirm-modal.tsx`** - Reusable delete confirmation
+## Files Summary
+
+| Issue | Files Modified |
+|-------|----------------|
+| 1. Google Auth | AuthContext.tsx |
+| 2. News CTAs | TrendingStructuredFeed.tsx |
+| 3. Profile likes | Profile.tsx |
+| 4. Mobile PostDetail | PostDetail.tsx |
+| 5. Hidden posts | Database migration |
+| 6. Indian indices | market-data/index.ts or marketService.ts |
+| 7. Markets news | Markets.tsx |
+| 8. Search focus | MainLayout.tsx |
+| 9. News in profile | TrendingStructuredFeed.tsx, Profile.tsx |
+| 10. Feed URL | Feed.tsx |
 
 ---
 
-## QA Acceptance Checklist
+## Testing Checklist
 
-| Test Case | Expected Result |
-|-----------|-----------------|
-| Google sign-in | User lands in authenticated feed |
-| Session refresh | User stays logged in |
-| Send first message | Conversation created, message sent |
-| Reply to message | Uses existing conversation |
-| Repost content | Appears in Profile > Posts |
-| Upvote on detail page | Reflects on Feed |
-| Tag color everywhere | Consistent teal/cyan |
-| Scroll feed | No nav overlap |
-| News card images | Images render with fallback |
-| Comment upvote/downvote | Works correctly |
-| Delete own post | Confirmation shown, post removed |
-| Delete own comment | Removed inline |
+- [ ] Sign in with Google -> Lands on /feed with user session active
+- [ ] Trending tab shows news with images and action CTAs (up/down/comment/repost/save)
+- [ ] Report spam on news article -> Article hides, cards shift up
+- [ ] Edit Profile Recent Activity shows upvotes not likes
+- [ ] PostDetail page on mobile: Back button left-aligned, CTAs equidistant
+- [ ] User prodmandeep@gmail.com sees their own posts in Pulse
+- [ ] Markets page shows Indian indices data (NIFTY50, SENSEX)
+- [ ] Markets page shows trending news by category
+- [ ] Click outside search -> Query clears, X button removed
+- [ ] Trending news properly fetches and displays in Feed
+
+---
+
+## Technical Notes
+
+### Google OAuth Session Timing
+The issue is that `window.history.replaceState` clears the hash before Supabase's internal listener can capture the tokens. The fix involves:
+1. Waiting longer before clearing (500ms instead of 100ms)
+2. Manually calling `getSession()` after hash processing
+3. Ensuring `onAuthStateChange` callback processes the new session
+
+### Indian Market Data
+TwelveData's free tier has limited Indian market support. Options:
+1. Use TwelveData's proper index symbols with exchange parameter
+2. Integrate with NSE's official data (may require different API)
+3. Use mock data as fallback when real data unavailable
+
+### News Article Interactions
+To allow users to save/interact with news articles:
+- Store interactions in bookmarks table with `entity_type: 'news_article'`
+- News article ID from `news_articles` table serves as `entity_id`
+- Profile page needs to join bookmarks with news_articles for display

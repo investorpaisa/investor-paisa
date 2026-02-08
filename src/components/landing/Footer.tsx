@@ -1,6 +1,5 @@
 
 import { Link } from 'react-router-dom';
-import { LogoWordmark } from '@/components/ui/logo';
 
 const Footer = () => {
   return (
@@ -8,9 +7,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <div className="mb-4">
-              <LogoWordmark variant="light" size="md" />
-            </div>
+            <h3 className="font-bold text-lg mb-4 bg-gradient-gold bg-clip-text text-transparent">Investor Paisa</h3>
             <p className="text-sm text-black/60 mb-4">
               A community platform empowering users on their financial journeys.
             </p>
@@ -45,7 +42,7 @@ const Footer = () => {
         </div>
         <div className="border-t border-black/5 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-sm text-black/60">
-            &copy; {new Date().getFullYear()} InvestorPaisa. All rights reserved.
+            &copy; {new Date().getFullYear()} Investor Paisa. All rights reserved.
           </p>
           <div className="flex space-x-4 mt-4 md:mt-0">
             <Link to="#" className="text-black/60 hover:text-gold transition-colors">

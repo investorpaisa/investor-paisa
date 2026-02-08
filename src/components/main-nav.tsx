@@ -1,13 +1,12 @@
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Menu, LogOut } from 'lucide-react';
+import { User, Menu, Sparkles, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { SearchComponent } from '@/components/header/SearchComponent';
 import { NotificationsComponent } from '@/components/header/NotificationsComponent';
 import { Typography, SystemIconButton } from '@/components/ui/design-system';
-import { Logo } from '@/components/ui/logo';
 
 export const MainNav = () => {
   const location = useLocation();
@@ -30,10 +29,15 @@ export const MainNav = () => {
       <div className="flex items-center justify-between px-6 py-4">
         {/* Logo */}
         <motion.div 
-          className="flex items-center"
+          className="flex items-center space-x-2"
           whileHover={{ scale: 1.05 }}
         >
-          <Logo variant="dark" size="md" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gold to-gold/80 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-black" />
+          </div>
+          <Typography.H3 className="text-xl">
+            Investor<span className="text-gold">Paisa</span>
+          </Typography.H3>
         </motion.div>
 
         {/* Actions */}

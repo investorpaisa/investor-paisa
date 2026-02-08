@@ -14,7 +14,6 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
 import { RoleAwareCreateButton } from '@/components/create/RoleAwareCreateButton';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Logo } from '@/components/ui/logo';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -78,7 +77,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 className="flex items-center cursor-pointer"
                 onClick={() => navigate('/feed')}
               >
-                <Logo variant="light" size="md" />
+                <span className="text-xl font-bold font-heading">
+                  Investor<span className="text-primary">Paisa</span>
+                </span>
               </div>
             </div>
 
