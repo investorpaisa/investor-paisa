@@ -115,6 +115,10 @@ export const useToggleReaction = () => {
       queryClient.invalidateQueries({ queryKey: ['reactions', variables.entityId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       queryClient.invalidateQueries({ queryKey: ['post', variables.entityId] });
+      // Fix #3: Invalidate feed and user-posts for cross-page sync
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['user-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['answers'] });
     },
     onError: (error) => {
       toast.error('Failed to update reaction: ' + error.message);

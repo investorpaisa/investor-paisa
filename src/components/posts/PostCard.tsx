@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ArrowUp, ArrowDown, MessageSquare, Bookmark, MoreHorizontal, TrendingUp, Share2, Repeat, Flag, EyeOff, Link } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquare, Bookmark, MoreHorizontal, TrendingUp, Share2, Repeat, Flag, EyeOff, Link, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +23,8 @@ import { useToggleHideUser } from '@/hooks/useHiddenUsers';
 import { ReportContentModal } from '@/components/moderation/ReportContentModal';
 import { RepostWithOpinionModal } from '@/components/posts/RepostWithOpinionModal';
 import { trackEvents } from '@/services/analytics/googleAnalytics';
-
+import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
+import { useDeletePost } from '@/hooks/useDeletePost';
 import { EnhancedPost } from '@/types';
 
 interface PostCardProps {
@@ -44,10 +45,11 @@ interface PostCardHeaderProps {
   onShare?: (post: EnhancedPost) => void;
   onReport?: () => void;
   onHide?: () => void;
+  onDelete?: () => void;
   isOwnPost?: boolean;
 }
 
-const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onShare, onReport, onHide, isOwnPost }) => {
+const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onShare, onReport, onHide, onDelete, isOwnPost }) => {
   const handleProfileClick = (event: React.MouseEvent) => {
     event.stopPropagation();
   };
@@ -101,6 +103,19 @@ const PostCardHeader: React.FC<PostCardHeaderProps> = ({ post, onClick, onShare,
               <Link className="mr-2 h-4 w-4" />
               Copy link
             </DropdownMenuItem>
+            {/* Fix #8: Delete option for own posts */}
+            {isOwnPost && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete?.();
+                }} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
             {!isOwnPost && (
               <>
                 <DropdownMenuSeparator />
@@ -420,7 +435,9 @@ const PostCard: React.FC<PostCardProps> = ({
   const { user } = useAuth();
   const navigate = useNavigate();
   const toggleHideUser = useToggleHideUser();
+  const deletePost = useDeletePost();
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   const isOwnPost = post.user_id === user?.id;
 
@@ -442,6 +459,19 @@ const PostCard: React.FC<PostCardProps> = ({
     }
   };
 
+  const handleDelete = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deletePost.mutateAsync(post.id);
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error('Delete failed:', error);
+    }
+  };
+
   return (
     <>
       <Card 
@@ -454,6 +484,7 @@ const PostCard: React.FC<PostCardProps> = ({
           onShare={onShare}
           onReport={handleReport}
           onHide={handleHide}
+          onDelete={handleDelete}
           isOwnPost={isOwnPost}
         />
         <PostCardContent post={post} onClick={onClick} />
@@ -471,6 +502,13 @@ const PostCard: React.FC<PostCardProps> = ({
         entityId={post.id}
         entityType="post"
         contentPreview={post.title || post.content || undefined}
+      />
+
+      <DeleteConfirmModal
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+        onConfirm={handleConfirmDelete}
+        isLoading={deletePost.isPending}
       />
     </>
   );

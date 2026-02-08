@@ -1,0 +1,12 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Continuous line iP monogram - teal primary color -->
+  <path 
+    d="M9 26V12M9 12C9 9 11 7 14 7H18C21 7 23 9 23 12C23 15 21 17 18 17H14M14 17V26M14 17C14 20 16 22 19 22H23"
+    stroke="#0D9488"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Dot on i -->
+  <circle cx="9" cy="5" r="2" fill="#0D9488"/>
+</svg>

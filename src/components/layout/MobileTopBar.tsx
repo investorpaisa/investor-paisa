@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { SearchTypeahead } from '@/components/search/SearchTypeahead';
+import { Logo } from '@/components/ui/logo';
 
 export const MobileTopBar: React.FC = () => {
   const navigate = useNavigate();
@@ -31,15 +32,13 @@ export const MobileTopBar: React.FC = () => {
   return (
     <header className="sticky top-0 z-40 glass border-b border-border/50">
       <div className="flex items-center justify-between h-12 px-2">
-        {/* Logo - Text only */}
+        {/* Logo */}
         {!showSearch && (
           <div 
             className="flex items-center cursor-pointer"
             onClick={() => navigate('/feed')}
           >
-            <span className="text-lg font-bold font-heading">
-              Investor<span className="text-primary">Paisa</span>
-            </span>
+            <Logo variant="light" size="sm" />
           </div>
         )}
 

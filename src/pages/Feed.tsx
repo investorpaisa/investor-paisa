@@ -9,7 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw, Repeat, Flag, EyeOff, Link } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquare, Share2, Bookmark, MoreHorizontal, TrendingUp, AlertCircle, RefreshCw, Repeat, Flag, EyeOff, Link, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +30,8 @@ import { TrendingStructuredFeed } from '@/components/feed/TrendingStructuredFeed
 import { VerificationModal } from '@/components/auth/VerificationModal';
 import { ReportContentModal } from '@/components/moderation/ReportContentModal';
 import { RepostWithOpinionModal } from '@/components/posts/RepostWithOpinionModal';
-
+import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
+import { useDeletePost } from '@/hooks/useDeletePost';
 interface Post {
   id: string;
   title: string | null;
@@ -104,12 +105,14 @@ const FeedPostCard: React.FC<{
   const createRepostWithOpinion = useCreateRepostWithOpinion();
   const removeRepost = useRemoveRepost();
   const toggleHideUser = useToggleHideUser();
+  const deletePost = useDeletePost();
   
   const [localUpvoteCount, setLocalUpvoteCount] = useState((post as any).upvote_count || 0);
   const [localDownvoteCount, setLocalDownvoteCount] = useState((post as any).downvote_count || 0);
   const [isVoteAnimating, setIsVoteAnimating] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showRepostModal, setShowRepostModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   const { data: userReactions } = useUserReaction(post.id, 'post');
   const { data: isBookmarked } = useIsBookmarked(post.id);
@@ -268,6 +271,16 @@ const FeedPostCard: React.FC<{
   // Format time - single line
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
+  // Handle delete post
+  const handleDeletePost = async () => {
+    try {
+      await deletePost.mutateAsync(post.id);
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error('Delete failed:', error);
+    }
+  };
+
   // Get type label
   const getTypeLabel = () => {
     if (post.type === 'question') return 'Question';
@@ -305,6 +318,19 @@ const FeedPostCard: React.FC<{
                 Copy link
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              {/* Fix #8: Delete option for own posts */}
+              {post.author_id === user?.id && (
+                <DropdownMenuItem 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteModal(true);
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              )}
               {/* Only show report for other users' posts */}
               {post.author_id !== user?.id && (
                 <DropdownMenuItem onClick={handleReportContent} className="text-destructive focus:text-destructive">
@@ -486,6 +512,14 @@ const FeedPostCard: React.FC<{
         }}
         onRepost={handleRepostSubmit}
         isLoading={createRepostWithOpinion.isPending}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+        onConfirm={handleDeletePost}
+        isLoading={deletePost.isPending}
       />
     </motion.div>
   );
@@ -714,8 +748,8 @@ const Feed: React.FC = () => {
         onValueChange={(v) => setActiveFeedTab(v as 'pulse' | 'trending' | 'following')} 
         className="w-full"
       >
-        {/* Sticky Tab Navigation - 2 tabs for logged-out, 3 for logged-in */}
-        <div className="sticky top-12 z-30 bg-background/95 backdrop-blur-sm pt-1 pb-3 -mx-2 px-2 sm:-mx-4 sm:px-4">
+        {/* Fix #5: Sticky Tab Navigation - proper z-index and top offset */}
+        <div className="sticky top-[48px] z-30 bg-background/95 backdrop-blur-sm pt-1 pb-3 -mx-2 px-2 sm:-mx-4 sm:px-4">
           <TabsList className={`grid w-full h-10 bg-secondary/50 border border-border/50 rounded-xl p-1 ${user ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger
               value="pulse" 
