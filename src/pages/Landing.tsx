@@ -10,6 +10,7 @@ import { LandingFeedPreview } from '@/components/landing/LandingFeedPreview';
 import { trackEvents } from '@/services/analytics/googleAnalytics';
 import { useSearch } from '@/hooks/useSearch';
 import { Card } from '@/components/ui/card';
+import { Logo } from '@/components/ui/logo';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -101,9 +102,7 @@ const Landing: React.FC = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Logo - Left */}
           <div className="flex items-center shrink-0">
-            <span className="font-bold text-lg sm:text-xl font-heading">
-              Investor<span className="text-primary">Paisa</span>
-            </span>
+            <Logo variant="light" size="md" />
           </div>
           
           {/* Search - Center */}
