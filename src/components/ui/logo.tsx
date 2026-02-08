@@ -3,25 +3,29 @@ import { cn } from '@/lib/utils';
 
 interface LogoIconProps {
   className?: string;
-  variant?: 'light' | 'dark';
+  variant?: 'light' | 'dark' | 'mono';
 }
 
 // The "iP" monogram icon - continuous line flow design
-export const LogoIcon: React.FC<LogoIconProps> = ({ className, variant = 'dark' }) => {
-  const color = variant === 'light' ? 'hsl(var(--primary))' : 'white';
-  
+export const LogoIcon: React.FC<LogoIconProps> = ({ className, variant = 'light' }) => {
+  const colorClasses = {
+    light: 'text-primary',
+    dark: 'text-white',
+    mono: 'text-black'
+  };
+
   return (
     <svg 
       viewBox="0 0 40 40" 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
-      className={cn("h-8 w-8", className)}
+      className={cn("h-8 w-8", colorClasses[variant], className)}
     >
       {/* Continuous line iP monogram */}
       <path 
         d="M12 32V14M12 14C12 10.686 14.686 8 18 8H22C25.314 8 28 10.686 28 14V14C28 17.314 25.314 20 22 20H18M18 20V32M18 20C18 23.314 20.686 26 24 26H28"
-        stroke={color}
-        strokeWidth="4"
+        stroke="currentColor"
+        strokeWidth="3.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -30,7 +34,7 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className, variant = 'dark' 
         cx="12" 
         cy="6" 
         r="2.5" 
-        fill={color}
+        fill="currentColor"
       />
     </svg>
   );
@@ -38,7 +42,7 @@ export const LogoIcon: React.FC<LogoIconProps> = ({ className, variant = 'dark' 
 
 interface LogoProps {
   className?: string;
-  variant?: 'light' | 'dark';
+  variant?: 'light' | 'dark' | 'mono';
   showIcon?: boolean;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -46,12 +50,15 @@ interface LogoProps {
 // Full logo with icon + wordmark
 export const Logo: React.FC<LogoProps> = ({ 
   className, 
-  variant = 'dark',
+  variant = 'light',
   showIcon = true,
   size = 'md'
 }) => {
-  const textColor = variant === 'light' ? 'text-primary' : 'text-white';
-  const accentColor = variant === 'light' ? 'text-primary' : 'text-primary';
+  const colorClasses = {
+    light: 'text-primary',
+    dark: 'text-white',
+    mono: 'text-black'
+  };
   
   const sizeClasses = {
     sm: 'text-lg',
@@ -73,9 +80,8 @@ export const Logo: React.FC<LogoProps> = ({
           variant={variant} 
         />
       )}
-      <span className={cn("font-bold font-heading", sizeClasses[size])}>
-        <span className={textColor}>Investor</span>
-        <span className={accentColor}>Paisa</span>
+      <span className={cn("font-bold font-heading", sizeClasses[size], colorClasses[variant])}>
+        InvestorPaisa
       </span>
     </div>
   );
@@ -84,11 +90,14 @@ export const Logo: React.FC<LogoProps> = ({
 // Wordmark only (no icon)
 export const LogoWordmark: React.FC<LogoProps> = ({ 
   className, 
-  variant = 'dark',
+  variant = 'light',
   size = 'md'
 }) => {
-  const baseColor = variant === 'light' ? 'text-foreground' : 'text-white';
-  const accentColor = 'text-primary';
+  const colorClasses = {
+    light: 'text-primary',
+    dark: 'text-white',
+    mono: 'text-black'
+  };
   
   const sizeClasses = {
     sm: 'text-lg',
@@ -97,9 +106,8 @@ export const LogoWordmark: React.FC<LogoProps> = ({
   };
 
   return (
-    <span className={cn("font-bold font-heading", sizeClasses[size], className)}>
-      <span className={baseColor}>Investor</span>
-      <span className={accentColor}>Paisa</span>
+    <span className={cn("font-bold font-heading", sizeClasses[size], colorClasses[variant], className)}>
+      InvestorPaisa
     </span>
   );
 };
