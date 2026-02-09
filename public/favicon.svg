@@ -1,11 +1,25 @@
-<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- InvestorPaisa icon - primary teal on light backgrounds -->
-  <path
-    d="M12 32V14M12 14C12 10.686 14.686 8 18 8H22C25.314 8 28 10.686 28 14V14C28 17.314 25.314 20 22 20H18M18 20V32M18 20C18 23.314 20.686 26 24 26H28"
-    stroke="#00B7A5"
-    stroke-width="3.5"
+<svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- InvestorPaisa iP monogram - continuous line flow design -->
+  <!-- Dot of the 'i' -->
+  <circle cx="18" cy="12" r="4" fill="#0D9488"/>
+  
+  <!-- Main continuous path: i stem + P loop -->
+  <path 
+    d="M18 20 L18 48 M18 28 C18 28 18 20 28 20 L35 20 C44 20 44 34 35 34 L28 34 C18 34 18 34 18 42 L18 48"
+    stroke="#0D9488"
+    stroke-width="5"
     stroke-linecap="round"
     stroke-linejoin="round"
+    fill="none"
   />
-  <circle cx="12" cy="6" r="2.5" fill="#00B7A5" />
+  
+  <!-- Inner P curve - the distinctive loop -->
+  <path 
+    d="M24 24 L32 24 C38 24 40 27 40 30 C40 33 38 36 32 36 L24 36"
+    stroke="#0D9488"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
 </svg>
