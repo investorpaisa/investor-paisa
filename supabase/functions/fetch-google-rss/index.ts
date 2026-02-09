@@ -39,18 +39,28 @@ interface RSSItem {
 function extractImageUrl(itemXml: string, description: string): string | null {
   // Try to find media:content or enclosure
   const mediaMatch = /<media:content[^>]*url="([^"]+)"/i.exec(itemXml);
-  if (mediaMatch) return mediaMatch[1];
+  if (mediaMatch && mediaMatch[1].startsWith('http')) return mediaMatch[1];
   
   const enclosureMatch = /<enclosure[^>]*url="([^"]+)"[^>]*type="image/i.exec(itemXml);
-  if (enclosureMatch) return enclosureMatch[1];
+  if (enclosureMatch && enclosureMatch[1].startsWith('http')) return enclosureMatch[1];
   
   // Try to extract from media:thumbnail
   const thumbnailMatch = /<media:thumbnail[^>]*url="([^"]+)"/i.exec(itemXml);
-  if (thumbnailMatch) return thumbnailMatch[1];
+  if (thumbnailMatch && thumbnailMatch[1].startsWith('http')) return thumbnailMatch[1];
   
-  // Try to extract first image from description HTML
+  // Try og:image or other image meta
+  const ogImageMatch = /<og:image[^>]*>([^<]+)</i.exec(itemXml);
+  if (ogImageMatch && ogImageMatch[1].startsWith('http')) return ogImageMatch[1];
+  
+  // Try to extract first image from description HTML - but validate it's a real URL
   const imgMatch = /<img[^>]+src=["']([^"']+)["']/i.exec(description);
-  if (imgMatch && imgMatch[1].startsWith('http')) return imgMatch[1];
+  if (imgMatch && imgMatch[1].startsWith('https://') && !imgMatch[1].includes('feedburner')) {
+    return imgMatch[1];
+  }
+  
+  // Google News specific - look for image in CDATA
+  const cdataImgMatch = /src="(https:\/\/[^"]+\.(jpg|jpeg|png|webp)[^"]*)"/i.exec(description);
+  if (cdataImgMatch) return cdataImgMatch[1];
   
   return null;
 }
@@ -117,17 +127,11 @@ function generateId(url: string): string {
   return `rss_${Math.abs(hash).toString(36)}`;
 }
 
-// Generate placeholder image based on category
-function getCategoryPlaceholder(category: string): string {
-  // Use Unsplash source for category-relevant stock photos
-  const categoryKeywords: Record<string, string> = {
-    'stocks': 'stock-market,trading',
-    'economy': 'business,economy',
-    'crypto': 'cryptocurrency,bitcoin',
-    'commodities': 'gold,oil',
-  };
-  const keywords = categoryKeywords[category] || 'finance,business';
-  return `https://source.unsplash.com/800x450/?${keywords}`;
+// Generate placeholder image based on category - use static reliable placeholders
+function getCategoryPlaceholder(category: string): string | null {
+  // Return null to indicate no image - let UI handle gracefully
+  // Dynamic Unsplash URLs often fail/block, so better to show no image than broken one
+  return null;
 }
 
 serve(async (req) => {
